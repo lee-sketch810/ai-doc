@@ -423,8 +423,7 @@ async function startAnalysis(){
       const oS=ob*OBS+1,oE=Math.min((ob+1)*OBS,targetSlides);
       setStatus('목차 구조 설계 중... ('+oS+'~'+oE+'번 / 총 '+targetSlides+'장)',Math.round(5+(ob/outlineBatches)*35));
 
-      const p='이러닝 교수설계 전문가. 원고 분석 후 슬라이드 목차 설계.\n\n[원고]\n'+mainText.slice(0,4000)+'\n\n[조건]\n프레임워크: 자동선택(Gagne/Merrill/ADDIE), 스타일: '+selectedStyle+(extra?', 추가: '+extra:'')+'\n\nnum '+oS+'~'+oE+' 정확히 '+(oE-oS+1)+'개만 반환.\nJSON만 반환:\n{"presTitle":"제목","framework":"fw","learningType":"유형","outline":[{"num":'+oS+',"type":"intro","title":"제목","chapter":"챕터","layoutHint":"title_center"}]}';
-
+const p='이러닝 교수설계 전문가입니다. 아래 원고 내용을 바탕으로 슬라이드 상세 내용을 생성하세요.\n\n[원고 내용 - 이 내용을 충실히 반영하세요]\n'+tSlice+'\n\n[생성할 슬라이드 목차]\n'+outStr+'\n\n[생성 규칙]\n- body: 원고의 해당 내용을 충실히 담을 것. 요약·축약 금지. 원고에 있는 수치·사례·인용·이론명은 그대로 포함. 200자 이내\n- keyPoints: 학습자가 반드시 기억해야 할 핵심 포인트 2-4개. 원고의 구체적 표현 그대로 사용\n- canvaPrompt: Canva PPT 슬라이드 디자인 지시 (영어, 레이아웃/색상/시각요소 포함, 60자 이내)\n\n⚠️ 공통 원칙: 반드시 위 [원고 내용]에 있는 내용만 사용할 것. 원고에 없는 내용은 절대 만들지 말 것. 원고에서 해당 슬라이드와 관련된 내용을 찾아 그대로 반영할 것. \'상세 정보 미포함\' 같은 표현 절대 사용 금지\n\nJSON만 반환:\n{"slides":[{"num":'+batch[0].num+',"type":"'+batch[0].type+'","title":"제목","body":"원고 기반 상세 내용","keyPoints":["구체적 포인트"],"canvaPrompt":"English design prompt for PPT slide","layoutHint":"'+( batch[0].layoutHint||'content')+'","chapter":"'+(batch[0].chapter||'')+'"}]}';
       const sd=await callGemini(key,p);
       if(ob===0){presTitle=sd.presTitle||'이러닝 슬라이드';framework=sd.framework||'ADDIE';learningType=sd.learningType||'이론 학습';}
       if(sd.outline&&Array.isArray(sd.outline))outlineAll.push(...sd.outline);
