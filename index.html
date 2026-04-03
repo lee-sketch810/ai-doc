@@ -374,23 +374,47 @@ function clearProto(){
   document.getElementById('protoStatus').style.display='none';
 }
 
-// ── PDF text extraction via PDF.js ───────────────────────
+// ── 텍스트 추출 (PDF / DOCX) ────────────────────────────
 async function extractText(file){
   if(!file) return '';
+  const name=file.name.toLowerCase();
   const buf=await file.arrayBuffer();
-  if(file.name.toLowerCase().endsWith('.pdf')){
-    const pdfjsLib=window['pdfjs-dist/build/pdf'];
-    pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-    const pdf=await pdfjsLib.getDocument({data:buf}).promise;
-    let text='';
-    for(let i=1;i<=Math.min(pdf.numPages,30);i++){
-      const page=await pdf.getPage(i);
-      const tc=await page.getTextContent();
-      text+=tc.items.map(it=>it.str).join(' ')+'\n';
-    }
-    return text.trim().slice(0,6000);
+
+  // DOCX 처리 — mammoth.js 사용
+  if(name.endsWith('.docx')||name.endsWith('.doc')){
+    try {
+      const result=await mammoth.extractRawText({arrayBuffer:buf});
+      const text=result.value||'';
+      if(text.trim().length>50) return text.trim().slice(0,8000);
+    } catch(e){ console.warn('mammoth error:',e); }
+    // fallback: XML에서 직접 텍스트 추출
+    try {
+      const zip=await JSZip.loadAsync(buf);
+      const xml=await zip.file('word/document.xml').async('string');
+      const text=xml.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
+      return text.slice(0,8000);
+    } catch(e){ console.warn('zip fallback error:',e); }
+    return '';
   }
-  return new TextDecoder('utf-8',{fatal:false}).decode(buf).replace(/[^\x20-\x7E\uAC00-\uD7A3\u3131-\u318E\u3200-\u321E]/g,' ').trim().slice(0,6000);
+
+  // PDF 처리 — PDF.js 사용
+  if(name.endsWith('.pdf')){
+    try {
+      const pdfjsLib=window['pdfjs-dist/build/pdf'];
+      pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      const pdf=await pdfjsLib.getDocument({data:buf}).promise;
+      let text='';
+      for(let i=1;i<=Math.min(pdf.numPages,40);i++){
+        const page=await pdf.getPage(i);
+        const tc=await page.getTextContent();
+        text+=tc.items.map(it=>it.str).join(' ')+'\n';
+      }
+      if(text.trim().length>50) return text.trim().slice(0,8000);
+    } catch(e){ console.warn('pdfjs error:',e); }
+    return '';
+  }
+
+  return '';
 }
 
 // ── 단일 배치 요청 ───────────────────────────────────────
@@ -421,7 +445,11 @@ async function startAnalysis(){
   try {
     st.innerHTML='<span class="spinner"></span>PDF 텍스트 추출 중...';
     const mainText=await extractText(mainF);
-    if(!mainText||mainText.length<50) throw new Error('문서에서 텍스트를 추출할 수 없습니다. PDF가 이미지 기반이거나 손상된 파일일 수 있습니다.');
+    if(!mainText||mainText.length<50) throw new Error('문서에서 텍스트를 추출할 수 없습니다.\n원인: 스캔본 PDF이거나 손상된 파일일 수 있습니다.\n해결: Word 파일은 .docx 형식으로 저장 후 다시 업로드해주세요.');
+    // 추출된 텍스트 첫 100자 확인용 로그
+    console.log('추출된 텍스트 미리보기:', mainText.slice(0,200));
+    st.innerHTML=`<span class="spinner"></span>텍스트 추출 완료 (${mainText.length}자) — 슬라이드 구조 설계 중...`;
+    await new Promise(r=>setTimeout(r,500));
 
     // 프로토 Slides 구조 분석 (토큰이 있을 때)
     const protoBlock = ''  // 프로토 구조는 슬라이드 생성 시 직접 레이아웃 복사로 처리;
@@ -749,5 +777,7 @@ function triggerDownload(blob,filename){
 }
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </body>
 </html>
