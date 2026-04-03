@@ -475,7 +475,13 @@ async function startAnalysis(){
 
   try {
     st.innerHTML='<span class="spinner"></span>PDF 텍스트 추출 중...';
-    const mainText=await extractText(mainF);
+    let mainText=await extractText(mainF);
+    // 서버에서 텍스트 정제 (글자 사이 공백 제거)
+    try {
+      const cleanR=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({apiKey:document.getElementById('anthropicKey').value.trim(),rawText:mainText})});
+      const cleanD=await cleanR.json();
+      if(cleanD.cleaned && cleanD.cleaned.length>50) mainText=cleanD.cleaned;
+    } catch(e){ console.warn('텍스트 정제 실패, 원본 사용:', e); }
     if(!mainText||mainText.length<50) throw new Error('문서에서 텍스트를 추출할 수 없습니다.\n원인: 스캔본 PDF이거나 손상된 파일일 수 있습니다.\n해결: Word 파일은 .docx 형식으로 저장 후 다시 업로드해주세요.');
     // 추출된 텍스트 첫 100자 확인용 로그
     console.log('추출된 텍스트 미리보기:', mainText.slice(0,200));
@@ -667,28 +673,30 @@ async function buildSlides(token,data){
   let pid, firstSlideIds=[];
 
   if(protoSlidesId){
-    // 프로토 슬라이드를 Drive API로 복사
     const s4status=document.getElementById('s4status');
-    s4status.innerHTML='<span class="spinner"></span>프로토 슬라이드 복사 중...';
-    const copyR=await fetch(`https://www.googleapis.com/drive/v3/files/${protoSlidesId}/copy`,{
-      method:'POST',
-      headers:{'Authorization':`Bearer ${token}`,'Content-Type':'application/json'},
-      body:JSON.stringify({name: data.presTitle||'이러닝 슬라이드'})
-    });
-    if(!copyR.ok){
-      const e=await copyR.json();
-      throw new Error('프로토 복사 실패: '+(e.error?.message||'Drive API 오류. 프로토 파일이 본인 소유이거나 편집 권한이 있어야 합니다.'));
-    }
-    const copied=await copyR.json();
-    pid=copied.id;
+    s4status.innerHTML='<span class="spinner"></span>프로토 테마 분석 중...';
 
-    // 복사된 프레젠테이션의 기존 슬라이드 ID 가져오기
-    s4status.innerHTML='<span class="spinner"></span>프로토 구조 분석 중...';
-    const presR=await fetch(`https://slides.googleapis.com/v1/presentations/${pid}?fields=slides.objectId`,{
+    // 프로토 슬라이드 구조 읽기 (마스터/레이아웃 ID 추출)
+    const protoR=await fetch(`https://slides.googleapis.com/v1/presentations/${protoSlidesId}?fields=masters,layouts,slides`,{
       headers:{'Authorization':`Bearer ${token}`}
     });
-    const presData=await presR.json();
-    firstSlideIds=(presData.slides||[]).map(s=>s.objectId);
+    if(!protoR.ok) throw new Error('프로토 슬라이드를 읽을 수 없습니다. 공유 권한을 확인해주세요.');
+    const protoData=await protoR.json();
+
+    // 새 프레젠테이션 생성
+    s4status.innerHTML='<span class="spinner"></span>새 프레젠테이션 생성 중...';
+    const cr=await fetch('https://slides.googleapis.com/v1/presentations',{
+      method:'POST',
+      headers:{'Authorization':`Bearer ${token}`,'Content-Type':'application/json'},
+      body:JSON.stringify({title:data.presTitle||'이러닝 슬라이드'})
+    });
+    if(!cr.ok) throw new Error('프레젠테이션 생성 실패');
+    const pres=await cr.json();
+    pid=pres.presentationId;
+    firstSlideIds=[pres.slides[0].objectId];
+
+    // 프로토의 레이아웃 ID 저장 (슬라이드 생성 시 활용)
+    protoLayouts = (protoData.layouts||[]).map(l=>l.objectId);
   } else {
     // 프로토 없음 → 새 빈 프레젠테이션 생성
     const cr=await fetch('https://slides.googleapis.com/v1/presentations',{
@@ -713,20 +721,20 @@ async function buildSlides(token,data){
     batch.forEach((s,j)=>{
       const i=b*batchSize+j;
       // 프로토 복사본의 기존 슬라이드는 재사용, 없으면 새로 생성
-      const existingId=firstSlideIds[i];
-      const sid=existingId||`sld${String(i+1).padStart(4,'0')}`;
+      const sid=`sld${String(i+1).padStart(4,'0')}`;
       const tid=`ttl${String(i+1).padStart(4,'0')}`;
       const bid=`bdy${String(i+1).padStart(4,'0')}`;
       const nid=`nte${String(i+1).padStart(4,'0')}`;
 
-      if(!existingId){
-        // 프로토에 없는 추가 슬라이드 생성
-        reqs.push({createSlide:{
-          objectId:sid,
-          insertionIndex:i,
-          slideLayoutReference:{predefinedLayout:['intro','objective'].includes(s.type)?'TITLE':'TITLE_AND_BODY'}
-        }});
+      // 첫 슬라이드는 기존 빈 슬라이드 삭제 후 새로 생성
+      if(i===0 && firstSlideIds[0]){
+        reqs.push({deleteObject:{objectId:firstSlideIds[0]}});
       }
+      reqs.push({createSlide:{
+        objectId:sid,
+        insertionIndex:i,
+        slideLayoutReference:{predefinedLayout:['intro','objective'].includes(s.type)?'TITLE':'TITLE_AND_BODY'}
+      }});
 
       // 텍스트 박스 생성 및 내용 삽입
       reqs.push({createShape:{objectId:tid,shapeType:'TEXT_BOX',elementProperties:{
@@ -774,15 +782,7 @@ async function buildSlides(token,data){
     document.getElementById('s4status').innerHTML=`<span class="spinner"></span>슬라이드 작성 중... (${Math.min((b+1)*batchSize,data.slides.length)}/${data.slides.length}장)`;
   }
 
-  // 3. 프로토 복사본에서 남은 기존 슬라이드 삭제 (새 슬라이드 수보다 많은 경우)
-  if(firstSlideIds.length>data.slides.length){
-    const deleteReqs=firstSlideIds.slice(data.slides.length).map(id=>({deleteObject:{objectId:id}}));
-    await fetch(`https://slides.googleapis.com/v1/presentations/${pid}:batchUpdate`,{
-      method:'POST',
-      headers:{'Authorization':`Bearer ${token}`,'Content-Type':'application/json'},
-      body:JSON.stringify({requests:deleteReqs})
-    });
-  }
+  // 슬라이드 생성 완료
 
   return pid;
 }
