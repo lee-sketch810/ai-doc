@@ -390,10 +390,10 @@ ${extra?`\n[추가 지시사항]\n${extra}`:''}
     }
     content.push({type:'text',text:prompt});
 
-    const r=await fetch('https://api.anthropic.com/v1/messages',{
+    const r=await fetch('/api/analyze',{
       method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01'},
-      body:JSON.stringify({model:'claude-opus-4-5',max_tokens:2000,messages:[{role:'user',content}]})
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({apiKey:key,model:'claude-opus-4-5',max_tokens:2000,messages:[{role:'user',content}]})
     });
     if(!r.ok){const e=await r.json();throw new Error(e.error?.message||`HTTP ${r.status}`);}
     const d=await r.json();
