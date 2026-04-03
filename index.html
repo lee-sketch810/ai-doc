@@ -374,6 +374,20 @@ function clearProto(){
   document.getElementById('protoStatus').style.display='none';
 }
 
+// ── 한글 자간 공백 정리 ─────────────────────────────────
+function fixSpacing(text){
+  // "가 나 다" 패턴 → "가나다" (한글 한 글자씩 분리된 경우)
+  const lines = text.split('\n');
+  return lines.map(line => {
+    // 공백으로 구분된 단어들이 모두 1-2글자이면 붙이기
+    const words = line.split(' ');
+    if(words.length > 3 && words.every(w => w.length <= 2 && /[가-힣]/.test(w))){
+      return words.join('');
+    }
+    return line;
+  }).join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
 // ── 텍스트 추출 (PDF / DOCX) ────────────────────────────
 async function extractText(file){
   if(!file) return '';
@@ -385,17 +399,8 @@ async function extractText(file){
     try {
       const result=await mammoth.extractRawText({arrayBuffer:buf});
       let text=result.value||'';
-      // 글자 사이 공백 정리: "주 제" → "주제", "작 성 자" → "작성자"
-      // 한 글자 + 공백 + 한 글자 패턴이 반복되면 공백 제거
-      text = text
-        .replace(/([가-힣a-zA-Z0-9])\s([가-힣a-zA-Z0-9])\s([가-힣a-zA-Z0-9])/g, '$1$2$3')
-        .replace(/([가-힣a-zA-Z0-9])\s([가-힣a-zA-Z0-9])/g, (m,a,b)=>{
-          // 둘 다 한글 한 글자면 붙이기
-          if(/[가-힣]/.test(a)&&/[가-힣]/.test(b)) return a+b;
-          return m;
-        })
-        .replace(/\n{3,}/g,'\n\n')  // 3줄 이상 빈줄 → 2줄
-        .trim();
+      // 글자 사이 공백 정리 (한글 한 글자씩 띄어쓰기 현상 제거)
+      text = fixSpacing(text);
       console.log('추출된 텍스트 미리보기:', text.slice(0,300));
       if(text.trim().length>50) return text.trim().slice(0,8000);
     } catch(e){ console.warn('mammoth error:',e); }
@@ -408,8 +413,7 @@ async function extractText(file){
         .replace(/<w:p[ >]/g,'\n')   // 단락 구분
         .replace(/<[^>]+>/g,'')       // 태그 제거
         .replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>')
-        .replace(/
-{3,}/g,'\n\n')
+        .replace(/\n{3,}/g,'\n\n')
         .trim();
       console.log('XML fallback 텍스트:', text.slice(0,300));
       return text.slice(0,8000);
