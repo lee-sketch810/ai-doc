@@ -223,7 +223,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
-let mainF=null, slideData=null, selectedStyle='비즈니스', targetSlides=70;
+let mainF=null, slideData=null, selectedStyle='비즈니스', targetSlides=70, fullText='';
 
 function tpw(id){const e=document.getElementById(id);e.type=e.type==='password'?'text':'password';}
 
@@ -387,6 +387,7 @@ async function startAnalysis(){
     setStatus('원고 텍스트 추출 중...',5);
     const mainText=await extractText(mainF);
     if(!mainText||mainText.length<50)throw new Error('텍스트 추출 실패. PDF(텍스트 기반) 또는 TXT 파일을 사용해주세요.');
+    fullText=mainText; // 원고 원문 전체 저장
     console.log('추출 텍스트 미리보기:',mainText.slice(0,300));
 
     const extra=document.getElementById('extra').value;
@@ -416,14 +417,17 @@ async function startAnalysis(){
       setStatus('슬라이드 내용 + Canva 프롬프트 생성 중... ('+(cS+1)+'~'+cE+'장 / 총 '+outlineAll.length+'장)',Math.round(40+(cb/contentBatches)*55));
 
       const outStr=batch.map(s=>s.num+'. ['+s.type+'/'+( s.layoutHint||'content')+'] '+s.title).join('\n');
-      const tSlice=mainText.slice(Math.floor((cS/outlineAll.length)*mainText.length),Math.min(Math.floor((cE/outlineAll.length)*mainText.length)+2000,mainText.length));
+      // 해당 배치의 원고 구간 - 앞뒤 여유 있게 잡기
+      const sliceStart=Math.max(0,Math.floor((cS/outlineAll.length)*fullText.length)-300);
+      const sliceEnd=Math.min(fullText.length,Math.floor((cE/outlineAll.length)*fullText.length)+1500);
+      const tSlice=fullText.slice(sliceStart,sliceEnd);
 
-      const p='이러닝 교수설계 전문가입니다. 아래 원고 내용을 바탕으로 슬라이드 상세 내용을 생성하세요.\n\n[원고 내용 - 이 내용을 충실히 반영하세요]\n'+tSlice+'\n\n[생성할 슬라이드 목차]\n'+outStr+'\n\n[생성 규칙]\n- body: 원고의 해당 내용을 충실히 담을 것. 요약·축약 금지. 원고에 있는 수치·사례·인용·이론명은 그대로 포함. 200자 이내\n- keyPoints: 학습자가 반드시 기억해야 할 핵심 포인트 2-4개. 원고의 구체적 표현 그대로 사용\n- speakerNote: 강사 스크립트. 원고 문장을 최대한 그대로 활용하여 자연스럽게 서술. 300자 이내\n- canvaPrompt: Canva PPT 슬라이드 디자인 지시 (영어, 레이아웃/색상/시각요소 포함, 60자 이내)\n\n⚠️ 공통 원칙: 원고에 등장하는 모든 고유명사·수치·사례·이론·인용구는 반드시 해당 슬라이드에 포함할 것. 임의로 내용을 만들거나 생략하지 말 것\n\nJSON만 반환:\n{"slides":[{"num":'+batch[0].num+',"type":"'+batch[0].type+'","title":"제목","body":"원고 기반 상세 내용","keyPoints":["구체적 포인트"],"speakerNote":"상세 강사 스크립트","canvaPrompt":"English design prompt for PPT slide","layoutHint":"'+( batch[0].layoutHint||'content')+'","chapter":"'+(batch[0].chapter||'')+'"}]}';
+      const p='이러닝 교수설계 전문가입니다. 아래 원고 내용을 바탕으로 슬라이드 상세 내용을 생성하세요.\n\n[원고 내용 - 이 내용을 충실히 반영하세요]\n'+tSlice+'\n\n[생성할 슬라이드 목차]\n'+outStr+'\n\n[생성 규칙]\n- body: 원고의 해당 내용을 충실히 담을 것. 요약·축약 금지. 원고에 있는 수치·사례·인용·이론명은 그대로 포함. 200자 이내\n- keyPoints: 학습자가 반드시 기억해야 할 핵심 포인트 2-4개. 원고의 구체적 표현 그대로 사용\n- speakerNote: 아래 [원고 내용]에서 이 슬라이드와 관련된 문장을 원문 그대로 발췌. 요약·재작성 금지. 500자 이내\n- canvaPrompt: Canva PPT 슬라이드 디자인 지시 (영어, 레이아웃/색상/시각요소 포함, 60자 이내)\n\n⚠️ 공통 원칙: 원고에 등장하는 모든 고유명사·수치·사례·이론·인용구는 반드시 해당 슬라이드에 포함할 것. 임의로 내용을 만들거나 생략하지 말 것\n\nJSON만 반환:\n{"slides":[{"num":'+batch[0].num+',"type":"'+batch[0].type+'","title":"제목","body":"원고 기반 상세 내용","keyPoints":["구체적 포인트"],"speakerNote":"상세 강사 스크립트","canvaPrompt":"English design prompt for PPT slide","layoutHint":"'+( batch[0].layoutHint||'content')+'","chapter":"'+(batch[0].chapter||'')+'"}]}';
 
       const bd=await callGemini(key,p);
       if(bd.slides&&Array.isArray(bd.slides))slidesAll.push(...bd.slides);
 
-      document.getElementById('slideGridPartial').innerHTML=slidesAll.map(s=>'<div class="sc"><div class="sc-head"><span class="sc-num">슬라이드 '+s.num+'</span><span class="tag '+(tColor[s.type]||'tag-blue')+'">'+(tLabel[s.type]||s.type)+'</span></div><div class="sc-title">'+(s.title||'')+'</div><div class="sc-body">'+(s.body||'')+'</div>'+(s.canvaPrompt?'<div class="sc-prompt">🎨 '+s.canvaPrompt+'</div>':'')+'</div>').join('');
+      document.getElementById('slideGridPartial').innerHTML=slidesAll.map(s=>'<div class="sc"><div class="sc-head"><span class="sc-num">슬라이드 '+s.num+'</span><span class="tag '+(tColor[s.type]||'tag-blue')+'">'+(tLabel[s.type]||s.type)+'</span></div><div class="sc-title">'+(s.title||'')+'</div><div class="sc-body">'+(s.body||'')+'</div>'+(s.speakerNote?'<div style="margin-top:5px;font-size:10px;color:var(--text3);border-top:0.5px solid var(--border);padding-top:4px;line-height:1.5;">📝 '+s.speakerNote.slice(0,120)+(s.speakerNote.length>120?'...':'')+'</div>':'')+(s.canvaPrompt?'<div class="sc-prompt">🎨 '+s.canvaPrompt+'</div>':'')+'</div>').join('');
     }
 
     slideData={presTitle,framework,learningType,totalSlides:slidesAll.length,style:selectedStyle,slides:slidesAll};
@@ -443,7 +447,7 @@ const tColor={intro:'tag-blue',objective:'tag-purple',concept:'tag-blue',procedu
 
 function renderResult(data){
   document.getElementById('metaRow').innerHTML='<div class="meta-box"><div class="meta-k">프레임워크</div><div class="meta-v">'+data.framework+'</div></div><div class="meta-box"><div class="meta-k">학습 유형</div><div class="meta-v">'+data.learningType+'</div></div><div class="meta-box"><div class="meta-k">총 슬라이드</div><div class="meta-v">'+data.totalSlides+'장</div></div><div class="meta-box"><div class="meta-k">스타일</div><div class="meta-v">'+data.style+'</div></div>';
-  document.getElementById('slideGrid').innerHTML=data.slides.map(s=>'<div class="sc"><div class="sc-head"><span class="sc-num">슬라이드 '+s.num+'</span><span class="tag '+(tColor[s.type]||'tag-blue')+'">'+(tLabel[s.type]||s.type)+'</span></div><div class="sc-title">'+(s.title||'')+'</div><div class="sc-body">'+(s.body||'')+'</div>'+(s.keyPoints?'<div style="margin-top:4px;">'+s.keyPoints.map(k=>'<span class="tag tag-green" style="margin:1px 2px;font-size:9px;">'+k+'</span>').join('')+'</div>':'')+(s.canvaPrompt?'<div class="sc-prompt">🎨 '+s.canvaPrompt+'</div>':'')+'</div>').join('');
+  document.getElementById('slideGrid').innerHTML=data.slides.map(s=>'<div class="sc"><div class="sc-head"><span class="sc-num">슬라이드 '+s.num+'</span><span class="tag '+(tColor[s.type]||'tag-blue')+'">'+(tLabel[s.type]||s.type)+'</span></div><div class="sc-title">'+(s.title||'')+'</div><div class="sc-body">'+(s.body||'')+'</div>'+(s.keyPoints?'<div style="margin-top:4px;">'+s.keyPoints.map(k=>'<span class="tag tag-green" style="margin:1px 2px;font-size:9px;">'+k+'</span>').join('')+'</div>':'')+(s.speakerNote?'<div style="margin-top:5px;font-size:10px;color:var(--text3);border-top:0.5px solid var(--border);padding-top:4px;line-height:1.5;">📝 '+s.speakerNote.slice(0,120)+(s.speakerNote.length>120?'...':'')+'</div>':'')+(s.canvaPrompt?'<div class="sc-prompt">🎨 '+s.canvaPrompt+'</div>':'')+'</div>').join('');
   document.getElementById('jsonViewer').textContent=JSON.stringify(data,null,2);
   document.getElementById('promptViewer').textContent=buildPrompt(data);
   renderBatchList(data);
@@ -458,7 +462,7 @@ function buildBatchPrompts(data, batchSize=20){
     const chapterLabel=chapterSet.length>0?chapterSet.join(', '):'슬라이드 '+(i+1)+'~'+(i+chunk.length);
     const slidesStr=chunk.map(s=>{
       const kp=(s.keyPoints||[]).map((k,j)=>'  '+(j+1)+'. '+k).join('\n');
-      return '---\n슬라이드 '+s.num+'/'+data.totalSlides+' | 유형: '+s.type+' | 레이아웃: '+(s.layoutHint||'content')+'\n제목: '+s.title+'\n본문: '+(s.body||'')+(kp?'\n핵심포인트:\n'+kp:'')+'\n강사스크립트: '+(s.speakerNote||'')+'\n디자인지시: '+(s.canvaPrompt||'');
+      return '---\n슬라이드 '+s.num+'/'+data.totalSlides+' | 유형: '+s.type+' | 레이아웃: '+(s.layoutHint||'content')+'\n제목: '+s.title+'\n본문: '+(s.body||'')+(kp?'\n핵심포인트:\n'+kp:'')+'\n발표노트(원고원문): '+(s.speakerNote||'')+'\n디자인지시: '+(s.canvaPrompt||'');
     }).join('\n');
 
     const prefix=isFirst
@@ -558,7 +562,7 @@ function downloadBatchTXT(){
 function buildPrompt(data){
   const slides=data.slides.map(s=>{
     const kp=(s.keyPoints||[]).map((k,i)=>'  '+(i+1)+'. '+k).join('\n');
-    return '---\n슬라이드 '+s.num+'/'+data.totalSlides+' | 유형: '+s.type+' | 레이아웃: '+(s.layoutHint||'content')+(s.chapter?' | 챕터: '+s.chapter:'')+'\n제목: '+s.title+'\n본문: '+(s.body||'')+(kp?'\n핵심포인트:\n'+kp:'')+'\n강사스크립트: '+(s.speakerNote||'')+'\n디자인지시: '+(s.canvaPrompt||'');
+    return '---\n슬라이드 '+s.num+'/'+data.totalSlides+' | 유형: '+s.type+' | 레이아웃: '+(s.layoutHint||'content')+(s.chapter?' | 챕터: '+s.chapter:'')+'\n제목: '+s.title+'\n본문: '+(s.body||'')+(kp?'\n핵심포인트:\n'+kp:'')+'\n발표노트(원고원문): '+(s.speakerNote||'')+'\n디자인지시: '+(s.canvaPrompt||'');
   }).join('\n');
 
   return `Canva로 프레젠테이션을 만들어주세요.
