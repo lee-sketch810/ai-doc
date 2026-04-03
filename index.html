@@ -202,7 +202,7 @@
         <div class="prompt-viewer" id="promptViewer"></div>
       </div>
       <div class="tab-content" id="tab-batch">
-        <div class="note" style="margin-bottom:12px;">50장 이상일 때 권장. 각 묶음을 순서대로 Gemini에 입력하세요. 2번째부터는 "이어서 같은 스타일로 만들어줘"를 앞에 붙이세요.</div>
+        <div class="note" style="margin-bottom:12px;">각 묶음(10장씩)을 순서대로 Gemini에 입력하세요. 2번째부터는 같은 채팅창에 이어서 붙여넣기 하세요.</div>
         <div id="batchList"></div>
       </div>
       <div class="divider"></div>
@@ -476,7 +476,7 @@ function renderResult(data){
   renderBatchList(data);
 }
 
-function buildBatchPrompts(data, batchSize=20){
+function buildBatchPrompts(data, batchSize=10){
   const batches=[];
   for(let i=0;i<data.slides.length;i+=batchSize){
     const chunk=data.slides.slice(i,i+batchSize);
@@ -501,7 +501,7 @@ function buildBatchPrompts(data, batchSize=20){
 }
 
 function renderBatchList(data){
-  const batches=buildBatchPrompts(data,20);
+  const batches=buildBatchPrompts(data,10);
   document.getElementById('batchList').innerHTML=batches.map((b,i)=>`
     <div style="margin-bottom:14px;border:0.5px solid var(--border);border-radius:var(--radius);overflow:hidden;">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--bg2);">
@@ -517,7 +517,7 @@ function renderBatchList(data){
 
 function copyBatch(idx){
   if(!slideData)return;
-  const batches=buildBatchPrompts(slideData,20);
+  const batches=buildBatchPrompts(slideData,10);
   navigator.clipboard.writeText(batches[idx].prompt).then(()=>{
     const m=document.getElementById('copyMsg');
     m.textContent='✓ 묶음 '+(idx+1)+' 복사됐습니다. Gemini에 붙여넣기 하세요!';
@@ -551,7 +551,7 @@ function downloadBatchJSONSingle(idx){
 
 function downloadBatchJSON(){
   if(!slideData)return;
-  const batchSize=20;
+  const batchSize=10;
   for(let i=0;i<slideData.slides.length;i+=batchSize){
     const chunk=slideData.slides.slice(i,i+batchSize);
     const chapterSet=[...new Set(chunk.map(s=>s.chapter).filter(Boolean))];
@@ -577,7 +577,7 @@ function downloadBatchJSON(){
 
 function downloadBatchTXT(){
   if(!slideData)return;
-  const batches=buildBatchPrompts(slideData,20);
+  const batches=buildBatchPrompts(slideData,10);
   const all=batches.map((b,i)=>'========== '+b.label+' ==========\n\n'+b.prompt).join('\n\n\n');
   triggerDL(new Blob([all],{type:'text/plain;charset=utf-8'}),(slideData.presTitle||'슬라이드')+'_챕터별프롬프트.txt');
 }
