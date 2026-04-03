@@ -1,509 +1,85 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>이러닝 교수설계 → Gemini Canva 프롬프트 생성기</title>
-<style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  :root {
-    --bg: #ffffff; --bg2: #f7f7f5; --bg3: #f0efe9;
-    --text: #1a1a1a; --text2: #555; --text3: #999;
-    --border: rgba(0,0,0,0.12); --border2: rgba(0,0,0,0.22);
-    --blue: #185FA5; --blue-bg: #E6F1FB; --blue-text: #0C447C;
-    --green: #1D9E75; --green-bg: #EAF3DE; --green-text: #27500A;
-    --amber-bg: #FAEEDA; --amber-text: #633806;
-    --red-bg: #FCEBEB; --red-text: #791F1F;
-    --radius: 8px; --radius-lg: 12px;
+export const config = {
+  api: {
+    bodyParser: { sizeLimit: '20mb' },
+    maxDuration: 60
   }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg3); color: var(--text); min-height: 100vh; }
-  .header { background: var(--bg); border-bottom: 0.5px solid var(--border); padding: 14px 24px; display: flex; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 10; }
-  .header-icon { width: 32px; height: 32px; background: var(--blue); border-radius: var(--radius); display: flex; align-items: center; justify-content: center; color: #E6F1FB; font-size: 16px; }
-  .header-title { font-size: 15px; font-weight: 600; }
-  .header-sub { font-size: 12px; color: var(--text3); margin-left: auto; }
-  .container { max-width: 860px; margin: 0 auto; padding: 2rem 1rem 4rem; }
-  .prog-wrap { display: flex; align-items: center; margin-bottom: 2rem; }
-  .ps { display: flex; align-items: center; flex: 1; }
-  .ps-dot { width: 30px; height: 30px; border-radius: 50%; border: 1.5px solid var(--border2); background: var(--bg); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; color: var(--text3); flex-shrink: 0; transition: all 0.2s; }
-  .ps.active .ps-dot { background: var(--blue); border-color: var(--blue); color: #E6F1FB; }
-  .ps.done .ps-dot { background: var(--green); border-color: var(--green); color: var(--green-bg); }
-  .ps-label { font-size: 11px; color: var(--text3); margin-left: 6px; white-space: nowrap; }
-  .ps.active .ps-label, .ps.done .ps-label { color: var(--text2); }
-  .ps-line { flex: 1; height: 1px; background: var(--border); margin: 0 4px; }
-  .card { background: var(--bg); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 1.75rem; margin-bottom: 1rem; }
-  .card-title { font-size: 17px; font-weight: 600; margin-bottom: 1.25rem; }
-  .step { display: none; }
-  .step.active { display: block; }
-  .field { margin-bottom: 1rem; }
-  .lbl { font-size: 12px; color: var(--text2); margin-bottom: 5px; display: block; font-weight: 500; }
-  .inp { width: 100%; padding: 9px 12px; border: 1px solid var(--border2); border-radius: var(--radius); font-size: 14px; background: var(--bg); color: var(--text); outline: none; transition: border 0.15s; }
-  .inp:focus { border-color: var(--blue); }
-  textarea.inp { resize: vertical; min-height: 76px; font-family: inherit; }
-  .pw-wrap { position: relative; }
-  .pw-wrap .inp { padding-right: 40px; }
-  .eye { position: absolute; right: 11px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--text3); font-size: 15px; }
-  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 20px; border: 1px solid var(--border2); border-radius: var(--radius); background: transparent; color: var(--text); font-size: 13px; cursor: pointer; transition: background 0.15s; font-weight: 500; }
-  .btn:hover { background: var(--bg2); }
-  .btn-primary { background: var(--blue); color: #E6F1FB; border-color: var(--blue); }
-  .btn-primary:hover { background: #0C447C; }
-  .btn-row { display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem; flex-wrap: wrap; gap: 8px; }
-  .drop { border: 2px dashed var(--border2); border-radius: var(--radius-lg); padding: 2rem 1rem; text-align: center; cursor: pointer; transition: all 0.15s; }
-  .drop:hover, .drop.over { background: var(--bg2); border-color: var(--blue); }
-  .drop-icon { font-size: 28px; margin-bottom: 8px; }
-  .drop-title { font-size: 14px; color: var(--text2); }
-  .drop-sub { font-size: 12px; color: var(--text3); margin-top: 4px; }
-  .fbadge { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; background: var(--bg2); border: 0.5px solid var(--border); border-radius: var(--radius); font-size: 13px; margin-top: 10px; }
-  .rm { cursor: pointer; color: var(--text3); font-size: 16px; }
-  .chip-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
-  .chip { padding: 6px 14px; border: 1px solid var(--border2); border-radius: 99px; font-size: 13px; cursor: pointer; transition: all 0.15s; background: var(--bg); }
-  .chip.selected { background: var(--blue); color: #E6F1FB; border-color: var(--blue); }
-  .sep { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.07em; margin: 1.5rem 0 0.75rem; border-top: 0.5px solid var(--border); padding-top: 1rem; }
-  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--blue); border-radius: 50%; animation: sp 0.7s linear infinite; vertical-align: middle; margin-right: 6px; }
-  @keyframes sp { to { transform: rotate(360deg); } }
-  .status-msg { font-size: 13px; color: var(--text2); padding: 8px 0; }
-  .note { background: var(--amber-bg); border-left: 2px solid #BA7517; border-radius: 0 var(--radius) var(--radius) 0; padding: 10px 13px; font-size: 12px; color: var(--amber-text); line-height: 1.6; margin-top: 10px; }
-  .err-box { background: var(--red-bg); border: 0.5px solid #A32D2D; border-radius: var(--radius); padding: 12px 14px; color: var(--red-text); font-size: 13px; margin-top: 10px; }
-  .divider { border: none; border-top: 0.5px solid var(--border); margin: 1.25rem 0; }
-  .tag { display: inline-block; font-size: 10px; padding: 2px 7px; border-radius: 99px; }
-  .tag-blue { background: #E6F1FB; color: #0C447C; }
-  .tag-green { background: #EAF3DE; color: #27500A; }
-  .tag-amber { background: #FAEEDA; color: #633806; }
-  .tag-purple { background: #EEEDFE; color: #3C3489; }
-  .result-tabs { display: flex; gap: 4px; margin-bottom: 1rem; border-bottom: 1px solid var(--border); }
-  .tab { padding: 8px 16px; font-size: 13px; cursor: pointer; border-bottom: 2px solid transparent; color: var(--text3); background: none; border-top: none; border-left: none; border-right: none; }
-  .tab.active { color: var(--blue); border-bottom-color: var(--blue); font-weight: 500; }
-  .tab-content { display: none; }
-  .tab-content.active { display: block; }
-  .slide-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
-  .sc { background: var(--bg2); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 12px; }
-  .sc-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; }
-  .sc-num { font-size: 10px; color: var(--text3); }
-  .sc-title { font-size: 12px; font-weight: 600; line-height: 1.4; margin-bottom: 4px; }
-  .sc-body { font-size: 11px; color: var(--text2); line-height: 1.5; margin-bottom: 4px; }
-  .sc-prompt { font-size: 10px; color: var(--blue-text); background: var(--blue-bg); padding: 4px 6px; border-radius: 4px; line-height: 1.5; margin-top: 4px; }
-  .json-viewer { background: #1e1e1e; color: #d4d4d4; border-radius: var(--radius); padding: 1rem; font-family: 'SF Mono', monospace; font-size: 11px; line-height: 1.6; overflow: auto; max-height: 500px; white-space: pre-wrap; word-break: break-all; }
-  .prompt-viewer { background: var(--bg2); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 1rem; font-size: 13px; line-height: 1.8; max-height: 500px; overflow: auto; white-space: pre-wrap; }
-  .meta-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin: 1rem 0; }
-  .meta-box { background: var(--bg2); border-radius: var(--radius); padding: 10px 14px; }
-  .meta-k { font-size: 11px; color: var(--text3); margin-bottom: 3px; }
-  .meta-v { font-size: 14px; font-weight: 600; }
-  .progress-bar { height: 6px; background: var(--border); border-radius: 99px; overflow: hidden; margin: 10px 0 4px; }
-  .progress-fill { height: 100%; background: var(--blue); border-radius: 99px; transition: width 0.4s; }
-  details summary { font-size: 12px; color: var(--text3); cursor: pointer; margin-top: 8px; }
-  details p { font-size: 12px; color: var(--text3); margin-top: 6px; line-height: 1.7; padding-left: 4px; }
-</style>
-</head>
-<body>
-<div class="header">
-  <div class="header-icon">🎯</div>
-  <div class="header-title">이러닝 교수설계 프롬프트 생성기</div>
-  <div class="header-sub">원고 → 교수설계 JSON → Gemini Canva 프롬프트</div>
-</div>
-<div class="container">
-  <div class="prog-wrap" id="prog">
-    <div class="ps active" id="p1"><div class="ps-dot">1</div><span class="ps-label">API 설정</span></div>
-    <div class="ps-line"></div>
-    <div class="ps" id="p2"><div class="ps-dot">2</div><span class="ps-label">원고 업로드</span></div>
-    <div class="ps-line"></div>
-    <div class="ps" id="p3"><div class="ps-dot">3</div><span class="ps-label">교수설계 분석</span></div>
-    <div class="ps-line"></div>
-    <div class="ps" id="p4"><div class="ps-dot">4</div><span class="ps-label">프롬프트 생성</span></div>
-  </div>
+};
 
-  <div class="step active" id="step1">
-    <div class="card">
-      <div class="card-title">API 키 설정</div>
-      <div class="field">
-        <label class="lbl">Google Gemini API Key <span style="font-size:11px;color:var(--green);font-weight:600;">무료</span></label>
-        <div class="pw-wrap">
-          <input class="inp" type="password" id="geminiKey" placeholder="AIzaSy..." />
-          <button class="eye" onclick="tpw('geminiKey')">👁</button>
-        </div>
-        <details><summary>발급 방법</summary><p>aistudio.google.com → Get API Key → Create API Key. 무료로 사용 가능합니다.</p></details>
-      </div>
-      <div class="btn-row"><div></div><button class="btn btn-primary" onclick="goStep(2)">다음 →</button></div>
-    </div>
-  </div>
-
-  <div class="step" id="step2">
-    <div class="card">
-      <div class="card-title">원고 업로드</div>
-      <div class="drop" id="mainDrop" onclick="document.getElementById('mainFile').click()" ondragover="dov(event,'mainDrop')" ondragleave="dlv('mainDrop')" ondrop="ddr(event,'mainDrop',setMain)">
-        <div class="drop-icon">📄</div>
-        <div class="drop-title">원고 파일을 여기에 드래그하거나 클릭</div>
-        <div class="drop-sub">.pdf · .txt · .docx 지원</div>
-      </div>
-      <input type="file" id="mainFile" accept=".pdf,.txt,.docx,.doc" style="display:none" onchange="setMain(this.files[0])">
-      <div id="mainBadge" style="display:none;"></div>
-      <div class="sep">교수설계 설정</div>
-      <div class="field">
-        <label class="lbl">슬라이드 수</label>
-        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-          <div class="chip-row" id="slideCountChips">
-            <div class="chip" data-v="30" onclick="selectCount(this)">30장</div>
-            <div class="chip" data-v="50" onclick="selectCount(this)">50장</div>
-            <div class="chip selected" data-v="70" onclick="selectCount(this)">70장</div>
-            <div class="chip" data-v="100" onclick="selectCount(this)">100장</div>
-          </div>
-          <div style="display:flex;align-items:center;gap:6px;">
-            <input class="inp" type="number" id="customCount" min="10" max="300" placeholder="직접 입력" style="width:100px;" oninput="setCustomCount(this.value)" />
-            <span style="font-size:12px;color:var(--text3);">장</span>
-          </div>
-        </div>
-        <div style="font-size:11px;color:var(--text3);margin-top:5px;" id="countHint">⏱ 70장 기준 약 10~15분 소요</div>
-      </div>
-      <div class="field">
-        <label class="lbl">학습 스타일</label>
-        <div class="chip-row" id="styleChips">
-          <div class="chip selected" data-v="비즈니스">비즈니스</div>
-          <div class="chip" data-v="학술">학술</div>
-          <div class="chip" data-v="창의적">창의적</div>
-          <div class="chip" data-v="심플">심플</div>
-        </div>
-      </div>
-      <div class="field">
-        <label class="lbl">추가 지시사항 (선택)</label>
-        <textarea class="inp" id="extra" placeholder="예: 사례 중심으로 구성, 퀴즈 10개 포함, 챕터별 요약 슬라이드 추가..."></textarea>
-      </div>
-      <div class="btn-row">
-        <button class="btn" onclick="goStep(1)">← 이전</button>
-        <button class="btn btn-primary" onclick="startAnalysis()">교수설계 분석 시작 →</button>
-      </div>
-    </div>
-  </div>
-
-  <div class="step" id="step3">
-    <div class="card">
-      <div class="card-title">AI 교수설계 분석 중</div>
-      <div id="s3status" class="status-msg"><span class="spinner"></span>원고 텍스트 추출 중...</div>
-      <div class="progress-bar"><div class="progress-fill" id="progFill" style="width:0%"></div></div>
-      <div id="s3progress" style="font-size:11px;color:var(--text3);margin-top:4px;"></div>
-      <div class="divider"></div>
-      <div style="font-size:12px;color:var(--text3);margin-bottom:8px;">생성 중 미리보기</div>
-      <div class="slide-grid" id="slideGridPartial"></div>
-    </div>
-  </div>
-
-  <div class="step" id="step4">
-    <div class="card">
-      <div class="card-title">생성 완료 ✓</div>
-      <div class="meta-row" id="metaRow"></div>
-      <div class="divider"></div>
-      <div class="result-tabs">
-        <button class="tab active" onclick="switchTab('preview')">슬라이드 미리보기</button>
-        <button class="tab" onclick="switchTab('json')">JSON 구조</button>
-        <button class="tab" onclick="switchTab('prompt')">Gemini 프롬프트</button>
-      </div>
-      <div class="tab-content active" id="tab-preview"><div class="slide-grid" id="slideGrid"></div></div>
-      <div class="tab-content" id="tab-json"><div class="json-viewer" id="jsonViewer"></div></div>
-      <div class="tab-content" id="tab-prompt">
-        <div class="note" style="margin-bottom:10px;">아래 프롬프트 전체를 복사 → Gemini에 붙여넣기 → Canva 연동으로 전체 슬라이드 생성</div>
-        <div class="prompt-viewer" id="promptViewer"></div>
-      </div>
-      <div class="divider"></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <button class="btn btn-primary" onclick="copyPrompt()">📋 Gemini 프롬프트 복사</button>
-        <button class="btn" onclick="downloadJSON()">📥 JSON 다운로드</button>
-        <button class="btn" onclick="downloadTXT()">📥 프롬프트 TXT</button>
-        <button class="btn" onclick="reset()">새 원고 분석</button>
-      </div>
-      <div id="copyMsg" style="display:none;font-size:12px;color:var(--green);margin-top:8px;">✓ 클립보드에 복사됐습니다. Gemini에 붙여넣기 하세요!</div>
-    </div>
-  </div>
-</div>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-<script>
-let mainF=null, slideData=null, selectedStyle='비즈니스', targetSlides=70;
-
-function tpw(id){const e=document.getElementById(id);e.type=e.type==='password'?'text':'password';}
-
-function goStep(n){
-  document.querySelectorAll('.step').forEach(s=>s.classList.remove('active'));
-  document.getElementById('step'+n).classList.add('active');
-  ['p1','p2','p3','p4'].forEach((id,i)=>{
-    const el=document.getElementById(id);
-    el.classList.remove('active','done');
-    if(i+1<n) el.classList.add('done');
-    else if(i+1===n) el.classList.add('active');
-  });
-  window.scrollTo({top:0,behavior:'smooth'});
+function cleanText(text) {
+  if (!text) return '';
+  return text
+    .split('\n')
+    .map(line => {
+      const words = line.split(' ');
+      const allShortKorean = words.length > 2 && words.every(w => w.length <= 2 && /^[가-힣]+$/.test(w));
+      if (allShortKorean) return words.join('');
+      let result = line;
+      result = result.replace(/([가-힣]) ([가-힣]) ([가-힣]) ([가-힣])/g, '$1$2$3$4');
+      result = result.replace(/([가-힣]) ([가-힣]) ([가-힣])/g, '$1$2$3');
+      result = result.replace(/([가-힣]) ([가-힣])/g, (m, a, b) => a + b);
+      return result;
+    })
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }
 
-function switchTab(name){
-  document.querySelectorAll('.tab').forEach((t,i)=>{
-    t.classList.toggle('active',['preview','json','prompt'][i]===name);
-  });
-  document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
-  document.getElementById('tab-'+name).classList.add('active');
-}
+export default async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-document.getElementById('styleChips').addEventListener('click',e=>{
-  const chip=e.target.closest('.chip');if(!chip)return;
-  document.querySelectorAll('#styleChips .chip').forEach(c=>c.classList.remove('selected'));
-  chip.classList.add('selected');selectedStyle=chip.dataset.v;
-});
-function selectCount(chip){
-  document.querySelectorAll('#slideCountChips .chip').forEach(c=>c.classList.remove('selected'));
-  chip.classList.add('selected');targetSlides=parseInt(chip.dataset.v);
-  document.getElementById('customCount').value='';updateCountHint();
-}
-function setCustomCount(val){
-  const n=parseInt(val);
-  if(n>=10&&n<=300){targetSlides=n;document.querySelectorAll('#slideCountChips .chip').forEach(c=>c.classList.remove('selected'));updateCountHint();}
-}
-function updateCountHint(){
-  const mins=Math.round(targetSlides/10*2);
-  document.getElementById('countHint').textContent=`⏱ ${targetSlides}장 기준 약 ${mins}~${mins+5}분 소요`;
-}
+  try {
+    const body = req.body || {};
+    const { apiKey, prompt, rawText } = body;
 
-function dov(e,id){e.preventDefault();document.getElementById(id).classList.add('over');}
-function dlv(id){document.getElementById(id).classList.remove('over');}
-function ddr(e,dropId,setter){e.preventDefault();dlv(dropId);const f=e.dataTransfer.files[0];if(f)setter(f);}
-function setMain(f){
-  mainF=f;
-  const el=document.getElementById('mainBadge');
-  el.style.display='block';
-  el.innerHTML='<div class="fbadge">📎 '+f.name+' ('+( f.size/1024/1024).toFixed(1)+'MB) <span class="rm" onclick="clearMain()">✕</span></div>';
-}
-function clearMain(){mainF=null;document.getElementById('mainBadge').style.display='none';document.getElementById('mainFile').value='';}
+    if (rawText !== undefined) {
+      return res.status(200).json({ cleaned: cleanText(rawText) });
+    }
 
-function fixSpacing(text){
-  return text.split('\n').map(line=>{
-    const words=line.split(' ');
-    if(words.length>2&&words.every(w=>w.length<=2&&/^[가-힣]+$/.test(w)))return words.join('');
-    return line;
-  }).join('\n').replace(/\n{3,}/g,'\n\n').trim();
-}
+    if (!apiKey) return res.status(400).json({ error: { message: 'API key가 없습니다.' } });
+    if (!prompt) return res.status(400).json({ error: { message: 'prompt가 없습니다.' } });
 
-async function extractText(file){
-  if(!file)return'';
-  const name=file.name.toLowerCase();
-  const buf=await file.arrayBuffer();
-  if(name.endsWith('.txt'))return new TextDecoder('utf-8').decode(buf).trim().slice(0,10000);
-  if(name.endsWith('.docx')||name.endsWith('.doc')){
-    try{const r=await mammoth.extractRawText({arrayBuffer:buf});const t=fixSpacing(r.value||'');if(t.length>50)return t.slice(0,10000);}catch(e){}
-    try{const z=await JSZip.loadAsync(buf);const x=await z.file('word/document.xml').async('string');return fixSpacing(x.replace(/<w:p[ >]/g,'\n').replace(/<[^>]+>/g,'').replace(/\n{3,}/g,'\n\n').trim()).slice(0,10000);}catch(e){}
-    return'';
-  }
-  if(name.endsWith('.pdf')){
-    try{
-      const lib=window['pdfjs-dist/build/pdf'];
-      lib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-      const pdf=await lib.getDocument({data:buf}).promise;
-      let t='';
-      for(let i=1;i<=Math.min(pdf.numPages,50);i++){const p=await pdf.getPage(i);const tc=await p.getTextContent();t+=tc.items.map(it=>it.str).join(' ')+'\n';}
-      return fixSpacing(t).slice(0,10000);
-    }catch(e){}
-  }
-  return'';
-}
-
-async function callGemini(key,prompt,retries=2){
-  for(let attempt=0;attempt<=retries;attempt++){
-    try{
-      const r=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({apiKey:key,prompt})});
-      if(!r.ok){const e=await r.json();throw new Error(e.error?.message||'HTTP '+r.status);}
-      const d=await r.json();
-      const raw=d.text||'';
-      console.log('Gemini 응답 (attempt '+(attempt+1)+'):', raw.slice(0,300));
-
-      // JSON 블록 추출 시도
-      let js=raw.match(/\{[\s\S]*\}/)?.[0]||'';
-
-      // 추출 실패시 전체를 JSON으로 시도
-      if(!js) js=raw.trim();
-      if(!js) throw new Error('빈 응답');
-
-      // 1차: 직접 파싱
-      try{return JSON.parse(js);}catch(e1){}
-
-      // 2차: 끊긴 배열 복구
-      try{
-        let fixed=js
-          .replace(/,\s*\{[^{}]*$/,'')   // 마지막 불완전 객체 제거
-          .replace(/,\s*"[^"]*"\s*:\s*[^,}]*$/,'') // 마지막 불완전 키값 제거
-          .replace(/,\s*$/,'');           // 마지막 쉼표 제거
-        const opens=(fixed.match(/\[/g)||[]).length-(fixed.match(/\]/g)||[]).length;
-        const braces=(fixed.match(/\{/g)||[]).length-(fixed.match(/\}/g)||[]).length;
-        fixed+=']'.repeat(Math.max(0,opens))+'}' .repeat(Math.max(0,braces));
-        return JSON.parse(fixed);
-      }catch(e2){}
-
-      // 3차: slides 배열만 추출
-      try{
-        const slidesMatch=raw.match(/"slides"\s*:\s*(\[[\s\S]*)/);
-        if(slidesMatch){
-          let arr=slidesMatch[1];
-          const opens=(arr.match(/\[/g)||[]).length-(arr.match(/\]/g)||[]).length;
-          arr+=']'.repeat(Math.max(0,opens));
-          const parsed=JSON.parse(arr);
-          return {slides:parsed};
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        system_instruction: { parts: [{ text: "You are a JSON API. Respond with valid JSON only. No markdown, no code blocks, no explanation. Pure JSON only." }] },
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.1,
+          maxOutputTokens: 8192,
+          responseMimeType: "application/json"
         }
-      }catch(e3){}
+      })
+    });
 
-      if(attempt<retries){
-        console.log('파싱 실패, 재시도 중...');
-        await new Promise(res=>setTimeout(res,1000));
-        continue;
-      }
-      throw new Error('JSON 파싱 실패 ('+attempt+'회 시도). 슬라이드 수를 줄이거나 다시 시도해주세요.');
-    }catch(e){
-      if(attempt<retries && !e.message.includes('HTTP')){
-        await new Promise(res=>setTimeout(res,1000));
-        continue;
-      }
-      throw e;
+    const rawResponse = await response.text();
+
+    let data;
+    try {
+      data = JSON.parse(rawResponse);
+    } catch (e) {
+      return res.status(500).json({ error: { message: 'Gemini 응답 파싱 실패: ' + rawResponse.slice(0, 300) } });
     }
+
+    if (!response.ok) {
+      return res.status(response.status).json({
+        error: { message: data.error?.message || 'Gemini API 오류 (HTTP ' + response.status + ')' }
+      });
+    }
+
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    if (!text) {
+      const reason = data.candidates?.[0]?.finishReason || 'unknown';
+      return res.status(500).json({ error: { message: 'Gemini 응답 없음. 종료 이유: ' + reason } });
+    }
+
+    res.status(200).json({ text });
+  } catch (e) {
+    res.status(500).json({ error: { message: e.message } });
   }
 }
-
-async function startAnalysis(){
-  const key=document.getElementById('geminiKey').value.trim();
-  if(!key){alert('Gemini API Key를 입력해주세요.');goStep(1);return;}
-  if(!mainF){alert('원고 파일을 업로드해주세요.');return;}
-  goStep(3);
-
-  const st=document.getElementById('s3status');
-  const fill=document.getElementById('progFill');
-  const prog=document.getElementById('s3progress');
-
-  const setStatus=(msg,pct)=>{
-    st.innerHTML='<span class="spinner"></span>'+msg;
-    fill.style.width=pct+'%';
-    prog.textContent=pct+'% 완료';
-  };
-
-  try{
-    setStatus('원고 텍스트 추출 중...',5);
-    const mainText=await extractText(mainF);
-    if(!mainText||mainText.length<50)throw new Error('텍스트 추출 실패. PDF(텍스트 기반) 또는 TXT 파일을 사용해주세요.');
-    console.log('추출 텍스트 미리보기:',mainText.slice(0,300));
-
-    const extra=document.getElementById('extra').value;
-    const outlineAll=[];
-    const OBS=10;
-    const outlineBatches=Math.ceil(targetSlides/OBS);
-    let presTitle='',framework='',learningType='';
-
-    for(let ob=0;ob<outlineBatches;ob++){
-      const oS=ob*OBS+1,oE=Math.min((ob+1)*OBS,targetSlides);
-      setStatus('목차 구조 설계 중... ('+oS+'~'+oE+'번 / 총 '+targetSlides+'장)',Math.round(5+(ob/outlineBatches)*35));
-
-      const p='이러닝 교수설계 전문가. 원고 분석 후 슬라이드 목차 설계.\n\n[원고]\n'+mainText.slice(0,4000)+'\n\n[조건]\n프레임워크: 자동선택(Gagne/Merrill/ADDIE), 스타일: '+selectedStyle+(extra?', 추가: '+extra:'')+'\n\nnum '+oS+'~'+oE+' 정확히 '+(oE-oS+1)+'개만 반환.\nJSON만 반환:\n{"presTitle":"제목","framework":"fw","learningType":"유형","outline":[{"num":'+oS+',"type":"intro","title":"제목","chapter":"챕터","layoutHint":"title_center"}]}';
-
-      const sd=await callGemini(key,p);
-      if(ob===0){presTitle=sd.presTitle||'이러닝 슬라이드';framework=sd.framework||'ADDIE';learningType=sd.learningType||'이론 학습';}
-      if(sd.outline&&Array.isArray(sd.outline))outlineAll.push(...sd.outline);
-    }
-
-    const slidesAll=[];
-    const CBS=10;
-    const contentBatches=Math.ceil(outlineAll.length/CBS);
-
-    for(let cb=0;cb<contentBatches;cb++){
-      const cS=cb*CBS,cE=Math.min((cb+1)*CBS,outlineAll.length);
-      const batch=outlineAll.slice(cS,cE);
-      setStatus('슬라이드 내용 + Canva 프롬프트 생성 중... ('+(cS+1)+'~'+cE+'장 / 총 '+outlineAll.length+'장)',Math.round(40+(cb/contentBatches)*55));
-
-      const outStr=batch.map(s=>s.num+'. ['+s.type+'/'+( s.layoutHint||'content')+'] '+s.title).join('\n');
-      const tSlice=mainText.slice(Math.floor((cS/outlineAll.length)*mainText.length),Math.min(Math.floor((cE/outlineAll.length)*mainText.length)+2000,mainText.length));
-
-      const p='이러닝 교수설계 전문가입니다. 아래 원고 내용을 바탕으로 슬라이드 상세 내용을 생성하세요.\n\n[원고 내용 - 이 내용을 충실히 반영하세요]\n'+tSlice+'\n\n[생성할 슬라이드 목차]\n'+outStr+'\n\n[생성 규칙]\n- body: 원고의 해당 내용을 충실히 담을 것. 요약·축약 금지. 원고에 있는 수치·사례·인용·이론명은 그대로 포함. 200자 이내\n- keyPoints: 학습자가 반드시 기억해야 할 핵심 포인트 2-4개. 원고의 구체적 표현 그대로 사용\n- speakerNote: 강사 스크립트. 원고 문장을 최대한 그대로 활용하여 자연스럽게 서술. 300자 이내\n- canvaPrompt: Canva PPT 슬라이드 디자인 지시 (영어, 레이아웃/색상/시각요소 포함, 60자 이내)\n\n⚠️ 공통 원칙: 원고에 등장하는 모든 고유명사·수치·사례·이론·인용구는 반드시 해당 슬라이드에 포함할 것. 임의로 내용을 만들거나 생략하지 말 것\n\nJSON만 반환:\n{"slides":[{"num":'+batch[0].num+',"type":"'+batch[0].type+'","title":"제목","body":"원고 기반 상세 내용","keyPoints":["구체적 포인트"],"speakerNote":"상세 강사 스크립트","canvaPrompt":"English design prompt for PPT slide","layoutHint":"'+( batch[0].layoutHint||'content')+'","chapter":"'+(batch[0].chapter||'')+'"}]}';
-
-      const bd=await callGemini(key,p);
-      if(bd.slides&&Array.isArray(bd.slides))slidesAll.push(...bd.slides);
-
-      document.getElementById('slideGridPartial').innerHTML=slidesAll.map(s=>'<div class="sc"><div class="sc-head"><span class="sc-num">슬라이드 '+s.num+'</span><span class="tag '+(tColor[s.type]||'tag-blue')+'">'+(tLabel[s.type]||s.type)+'</span></div><div class="sc-title">'+(s.title||'')+'</div><div class="sc-body">'+(s.body||'')+'</div>'+(s.canvaPrompt?'<div class="sc-prompt">🎨 '+s.canvaPrompt+'</div>':'')+'</div>').join('');
-    }
-
-    slideData={presTitle,framework,learningType,totalSlides:slidesAll.length,style:selectedStyle,slides:slidesAll};
-    renderResult(slideData);
-    setStatus('✓ 완료 — '+slidesAll.length+'장 생성됨',100);
-    prog.textContent='';
-    setTimeout(()=>goStep(4),800);
-
-  }catch(e){
-    st.innerHTML='<div class="err-box">오류: '+e.message+'</div>';
-    fill.style.width='0%';
-  }
-}
-
-const tLabel={intro:'도입',objective:'학습목표',concept:'개념',procedure:'절차',activity:'활동',quiz:'퀴즈',summary:'정리',transfer:'전이',development:'전개',content:'내용'};
-const tColor={intro:'tag-blue',objective:'tag-purple',concept:'tag-blue',procedure:'tag-amber',activity:'tag-green',quiz:'tag-amber',summary:'tag-blue',transfer:'tag-green',development:'tag-blue',content:'tag-blue'};
-
-function renderResult(data){
-  document.getElementById('metaRow').innerHTML='<div class="meta-box"><div class="meta-k">프레임워크</div><div class="meta-v">'+data.framework+'</div></div><div class="meta-box"><div class="meta-k">학습 유형</div><div class="meta-v">'+data.learningType+'</div></div><div class="meta-box"><div class="meta-k">총 슬라이드</div><div class="meta-v">'+data.totalSlides+'장</div></div><div class="meta-box"><div class="meta-k">스타일</div><div class="meta-v">'+data.style+'</div></div>';
-  document.getElementById('slideGrid').innerHTML=data.slides.map(s=>'<div class="sc"><div class="sc-head"><span class="sc-num">슬라이드 '+s.num+'</span><span class="tag '+(tColor[s.type]||'tag-blue')+'">'+(tLabel[s.type]||s.type)+'</span></div><div class="sc-title">'+(s.title||'')+'</div><div class="sc-body">'+(s.body||'')+'</div>'+(s.keyPoints?'<div style="margin-top:4px;">'+s.keyPoints.map(k=>'<span class="tag tag-green" style="margin:1px 2px;font-size:9px;">'+k+'</span>').join('')+'</div>':'')+(s.canvaPrompt?'<div class="sc-prompt">🎨 '+s.canvaPrompt+'</div>':'')+'</div>').join('');
-  document.getElementById('jsonViewer').textContent=JSON.stringify(data,null,2);
-  document.getElementById('promptViewer').textContent=buildPrompt(data);
-}
-
-function buildPrompt(data){
-  const slides=data.slides.map(s=>{
-    const kp=(s.keyPoints||[]).map((k,i)=>'  '+(i+1)+'. '+k).join('\n');
-    return '---\n슬라이드 '+s.num+'/'+data.totalSlides+' | 유형: '+s.type+' | 레이아웃: '+(s.layoutHint||'content')+(s.chapter?' | 챕터: '+s.chapter:'')+'\n제목: '+s.title+'\n본문: '+(s.body||'')+(kp?'\n핵심포인트:\n'+kp:'')+'\n강사스크립트: '+(s.speakerNote||'')+'\n디자인지시: '+(s.canvaPrompt||'');
-  }).join('\n');
-
-  return `Canva로 프레젠테이션을 만들어주세요.
-
-⚠️ 반드시 지켜야 할 규칙:
-1. 웹페이지나 문서가 아닌 반드시 Canva 프레젠테이션(PPT)으로 만들 것
-2. 아래 슬라이드별 내용을 절대 축약하거나 생략하지 말 것
-3. 본문과 핵심포인트의 내용을 그대로 슬라이드에 반영할 것
-4. 강사스크립트는 슬라이드 노트에 입력할 것
-5. 총 ${data.totalSlides}장을 모두 만들 것 (1장도 빠짐없이)
-
-[프레젠테이션 정보]
-제목: ${data.presTitle}
-교수설계 프레임워크: ${data.framework}
-학습 유형: ${data.learningType}
-스타일: ${data.style}
-총 슬라이드: ${data.totalSlides}장
-
-[레이아웃 규칙]
-- title_center: 제목만 크게 중앙 배치
-- content_bullet: 제목 + 핵심포인트 목록
-- two_column: 좌우 2단 구성
-- image_text: 이미지 영역 + 텍스트
-- quiz: 질문을 크게 강조
-- summary: 요약 박스 형태
-
-[디자인 원칙]
-- 도입부: 밝고 임팩트 있는 배경
-- 내용부: 깔끔하고 가독성 높은 레이아웃
-- 정리/평가: 차분하고 정돈된 느낌
-- 핵심포인트: 번호/아이콘/컬러박스로 시각화
-- 통계/수치: 인포그래픽 형태로 강조
-- 전체 컬러 팔레트 통일
-
-[슬라이드 상세 내용 - 절대 축약 금지]
-${slides}`;
-}
-
-function copyPrompt(){
-  if(!slideData)return;
-  navigator.clipboard.writeText(buildPrompt(slideData)).then(()=>{
-    const m=document.getElementById('copyMsg');m.style.display='block';
-    setTimeout(()=>m.style.display='none',3000);
-  });
-}
-function downloadJSON(){
-  if(!slideData)return;
-  triggerDL(new Blob([JSON.stringify(slideData,null,2)],{type:'application/json'}),(slideData.presTitle||'슬라이드')+'_교수설계.json');
-}
-function downloadTXT(){
-  if(!slideData)return;
-  triggerDL(new Blob([buildPrompt(slideData)],{type:'text/plain;charset=utf-8'}),(slideData.presTitle||'슬라이드')+'_Gemini프롬프트.txt');
-}
-function triggerDL(blob,name){
-  const url=URL.createObjectURL(blob);const a=document.createElement('a');
-  a.href=url;a.download=name;document.body.appendChild(a);a.click();
-  document.body.removeChild(a);setTimeout(()=>URL.revokeObjectURL(url),1000);
-}
-function reset(){mainF=null;slideData=null;clearMain();goStep(2);}
-</script>
-</body>
-</html>
