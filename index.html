@@ -198,17 +198,12 @@
       <input type="file" id="mainFile" accept=".pdf,.docx,.doc" style="display:none" onchange="setMain(this.files[0])">
       <div id="mainBadge" style="display:none;"></div>
 
-      <div class="sep">참조 문서 (프로토) <span class="tag tag-amber">선택</span></div>
-      <div style="font-size:12px;color:var(--text2);margin-bottom:8px;line-height:1.6;">업로드 시 레이아웃 구조·섹션 구성·슬라이드 유형 비율을 분석해 동일한 형식으로 생성합니다.</div>
-      <div class="drop" id="protoDrop"
-        onclick="document.getElementById('protoFile').click()"
-        ondragover="dov(event,'protoDrop')" ondragleave="dlv('protoDrop')" ondrop="ddr(event,'protoDrop',setProto)">
-        <div class="drop-icon">🗂</div>
-        <div class="drop-title">형식 참조용 프로토 문서</div>
-        <div class="drop-sub">.pdf · .docx 지원</div>
+      <div class="sep">프로토 Google Slides <span class="tag tag-amber">선택</span></div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:8px;line-height:1.6;">프로토 슬라이드 URL을 입력하면 레이아웃·마스터 테마·슬라이드 구조를 분석해 동일한 형식으로 생성합니다.</div>
+      <div class="field">
+        <input class="inp" type="text" id="protoUrl" placeholder="https://docs.google.com/presentation/d/xxxx/edit" oninput="onProtoUrlInput(this.value)" />
       </div>
-      <input type="file" id="protoFile" accept=".pdf,.docx,.doc" style="display:none" onchange="setProto(this.files[0])">
-      <div id="protoBadge" style="display:none;"></div>
+      <div id="protoStatus" style="display:none;"></div>
 
       <div class="sep">추가 설정</div>
       <div class="field">
@@ -300,7 +295,7 @@
 </div><!-- /container -->
 
 <script>
-let mainF=null, protoF=null, slideData=null, slidesUrl='', selectedStyle='비즈니스', targetSlides=100;
+let mainF=null, protoF=null, slideData=null, slidesUrl='', selectedStyle='비즈니스', targetSlides=100, protoSlidesId=null, protoLayouts=null;
 
 // ── UI helpers ──────────────────────────────────────────
 function tpw(id){const e=document.getElementById(id);e.type=e.type==='password'?'text':'password';}
@@ -358,18 +353,25 @@ function makeBadge(badgeId,f,clearFn){
   el.innerHTML=`<div class="fbadge">📎 ${f.name} (${(f.size/1024/1024).toFixed(1)}MB) <span class="rm" onclick="${clearFn}()">✕</span></div>`;
 }
 function setMain(f){mainF=f;makeBadge('mainBadge',f,'clearMain');}
-function setProto(f){
-  protoF=f;makeBadge('protoBadge',f,'clearProto');
-  if(!document.getElementById('protoInd')){
-    const d=document.createElement('div');d.id='protoInd';d.className='proto-ind';
-    d.innerHTML='🔵 프로토 형식 반영 활성화 — 레이아웃·섹션 구조·슬라이드 유형 비율을 분석합니다';
-    document.getElementById('protoBadge').after(d);
+function clearMain(){mainF=null;document.getElementById('mainBadge').style.display='none';document.getElementById('mainFile').value='';}
+
+function onProtoUrlInput(val){
+  const st=document.getElementById('protoStatus');
+  const match=val.match(/presentation\/d\/([a-zA-Z0-9_-]+)/);
+  if(match){
+    protoSlidesId=match[1];
+    st.style.display='block';
+    st.innerHTML='<div class="proto-ind">🔵 프로토 슬라이드 연결됨 — Google Slides 로그인 시 레이아웃·마스터 테마를 자동 복사합니다 <span style="cursor:pointer;color:var(--text3);" onclick="clearProto()">✕</span></div>';
+  } else {
+    protoSlidesId=null;
+    protoLayouts=null;
+    st.style.display='none';
   }
 }
-function clearMain(){mainF=null;document.getElementById('mainBadge').style.display='none';document.getElementById('mainFile').value='';}
 function clearProto(){
-  protoF=null;document.getElementById('protoBadge').style.display='none';document.getElementById('protoFile').value='';
-  const i=document.getElementById('protoInd');if(i)i.remove();
+  protoSlidesId=null; protoLayouts=null; protoF=null;
+  document.getElementById('protoUrl').value='';
+  document.getElementById('protoStatus').style.display='none';
 }
 
 // ── PDF text extraction via PDF.js ───────────────────────
@@ -419,11 +421,10 @@ async function startAnalysis(){
   try {
     st.innerHTML='<span class="spinner"></span>PDF 텍스트 추출 중...';
     const mainText=await extractText(mainF);
-    const protoText=protoF?await extractText(protoF):'';
-
     if(!mainText||mainText.length<50) throw new Error('문서에서 텍스트를 추출할 수 없습니다. PDF가 이미지 기반이거나 손상된 파일일 수 있습니다.');
 
-    const protoBlock=protoText?`\n\n[프로토 참조 문서]\n${protoText}\n위 프로토 문서의 레이아웃·섹션 구성·슬라이드 유형 비율을 동일하게 적용.`:'';
+    // 프로토 Slides 구조 분석 (토큰이 있을 때)
+    const protoBlock = ''  // 프로토 구조는 슬라이드 생성 시 직접 레이아웃 복사로 처리;
     const extra=document.getElementById('extra').value;
 
     // 1단계: 전체 구조 먼저 파악
@@ -511,7 +512,7 @@ function renderMeta(d){
     <div class="meta-box"><div class="meta-k">프레임워크</div><div class="meta-v">${d.framework||'-'}</div></div>
     <div class="meta-box"><div class="meta-k">학습 유형</div><div class="meta-v">${d.learningType||'-'}</div></div>
     <div class="meta-box"><div class="meta-k">총 슬라이드</div><div class="meta-v">${d.totalSlides||d.slides.length}장</div></div>
-    ${protoF?'<div class="meta-box"><div class="meta-k">프로토 적용</div><div class="meta-v" style="color:var(--blue);">✓ 반영됨</div></div>':''}`;
+    ${protoSlidesId?'<div class="meta-box"><div class="meta-k">프로토 적용</div><div class="meta-v" style="color:var(--blue);">✓ 레이아웃 복사</div></div>':''}`;
 }
 
 function renderSlides(slides){
@@ -561,50 +562,163 @@ function getToken(clientId){
   });
 }
 
+// ── 프로토 슬라이드 레이아웃 분석 ─────────────────────────
+async function fetchProtoLayouts(token, protoId){
+  const r=await fetch(`https://slides.googleapis.com/v1/presentations/${protoId}?fields=layouts,masters,slides`,{
+    headers:{'Authorization':`Bearer ${token}`}
+  });
+  if(!r.ok) throw new Error('프로토 슬라이드 읽기 실패. 공유 설정을 확인해주세요.');
+  return await r.json();
+}
+
+// ── 프로토에서 새 프레젠테이션으로 테마 복사 ─────────────
+async function copyThemeFromProto(token, pid, protoId){
+  const r=await fetch(`https://slides.googleapis.com/v1/presentations/${pid}:batchUpdate`,{
+    method:'POST',
+    headers:{'Authorization':`Bearer ${token}`,'Content-Type':'application/json'},
+    body:JSON.stringify({requests:[{
+      replaceAllShapesWithImage: undefined  // placeholder
+    }]})
+  });
+  // 테마 복사는 Slides API 직접 지원 없음 → copyPaste 방식으로 마스터 적용
+  const applyR=await fetch(`https://slides.googleapis.com/v1/presentations/${pid}:batchUpdate`,{
+    method:'POST',
+    headers:{'Authorization':`Bearer ${token}`,'Content-Type':'application/json'},
+    body:JSON.stringify({requests:[{
+      applySlideLayout:{
+        slideLayout:{ predefinedLayout:'BLANK' }
+      }
+    }]})
+  });
+}
+
 async function buildSlides(token,data){
-  const cr=await fetch('https://slides.googleapis.com/v1/presentations',{
-    method:'POST',
-    headers:{'Authorization':`Bearer ${token}`,'Content-Type':'application/json'},
-    body:JSON.stringify({title:data.presTitle||'이러닝 슬라이드'})
-  });
-  if(!cr.ok) throw new Error('프레젠테이션 생성 실패');
-  const pres=await cr.json();
-  const pid=pres.presentationId;
-  const firstId=pres.slides[0].objectId;
-  const reqs=[];
+  // 1. 프로토가 있으면 프로토를 복사해서 시작, 없으면 새로 생성
+  let pid, firstSlideIds=[];
 
-  data.slides.forEach((s,i)=>{
-    if(i===0) reqs.push({deleteObject:{objectId:firstId}});
-    const sid=`sl_${i}`,tid=`tl_${i}`,bid=`bd_${i}`,nid=`nt_${i}`;
-    reqs.push({createSlide:{objectId:sid,insertionIndex:i,slideLayoutReference:{predefinedLayout:['intro','objective'].includes(s.type)?'TITLE':'TITLE_AND_BODY'}}});
-    reqs.push({createShape:{objectId:tid,shapeType:'TEXT_BOX',elementProperties:{pageObjectId:sid,size:{width:{magnitude:6800000,unit:'EMU'},height:{magnitude:900000,unit:'EMU'}},transform:{scaleX:1,scaleY:1,translateX:457200,translateY:457200,unit:'EMU'}}}});
-    reqs.push({insertText:{objectId:tid,text:s.title}});
-    reqs.push({updateTextStyle:{objectId:tid,style:{fontSize:{magnitude:s.type==='intro'?32:24,unit:'PT'},bold:true},fields:'fontSize,bold'}});
-    reqs.push({createShape:{objectId:bid,shapeType:'TEXT_BOX',elementProperties:{pageObjectId:sid,size:{width:{magnitude:6800000,unit:'EMU'},height:{magnitude:3200000,unit:'EMU'}},transform:{scaleX:1,scaleY:1,translateX:457200,translateY:1600000,unit:'EMU'}}}});
-    reqs.push({insertText:{objectId:bid,text:s.body}});
-    reqs.push({updateTextStyle:{objectId:bid,style:{fontSize:{magnitude:16,unit:'PT'}},fields:'fontSize'}});
-    if(s.speakerNote){
-      reqs.push({createShape:{objectId:nid,shapeType:'TEXT_BOX',elementProperties:{pageObjectId:sid,size:{width:{magnitude:6800000,unit:'EMU'},height:{magnitude:500000,unit:'EMU'}},transform:{scaleX:1,scaleY:1,translateX:457200,translateY:5500000,unit:'EMU'}}}});
-      reqs.push({insertText:{objectId:nid,text:`📝 ${s.speakerNote}`}});
-      reqs.push({updateTextStyle:{objectId:nid,style:{fontSize:{magnitude:11,unit:'PT'},italic:true,foregroundColor:{opaqueColor:{rgbColor:{red:0.5,green:0.5,blue:0.5}}}},fields:'fontSize,italic,foregroundColor'}});
+  if(protoSlidesId){
+    // 프로토 슬라이드를 Drive API로 복사
+    const s4status=document.getElementById('s4status');
+    s4status.innerHTML='<span class="spinner"></span>프로토 슬라이드 복사 중...';
+    const copyR=await fetch(`https://www.googleapis.com/drive/v3/files/${protoSlidesId}/copy`,{
+      method:'POST',
+      headers:{'Authorization':`Bearer ${token}`,'Content-Type':'application/json'},
+      body:JSON.stringify({name: data.presTitle||'이러닝 슬라이드'})
+    });
+    if(!copyR.ok){
+      const e=await copyR.json();
+      throw new Error('프로토 복사 실패: '+(e.error?.message||'Drive API 오류. 프로토 파일이 본인 소유이거나 편집 권한이 있어야 합니다.'));
     }
-  });
+    const copied=await copyR.json();
+    pid=copied.id;
 
-  const br=await fetch(`https://slides.googleapis.com/v1/presentations/${pid}:batchUpdate`,{
-    method:'POST',
-    headers:{'Authorization':`Bearer ${token}`,'Content-Type':'application/json'},
-    body:JSON.stringify({requests:reqs})
-  });
-  if(!br.ok){
-    const errData = await br.json();
-    const errMsg = errData.error?.message || JSON.stringify(errData);
-    throw new Error('슬라이드 내용 작성 실패: ' + errMsg);
+    // 복사된 프레젠테이션의 기존 슬라이드 ID 가져오기
+    s4status.innerHTML='<span class="spinner"></span>프로토 구조 분석 중...';
+    const presR=await fetch(`https://slides.googleapis.com/v1/presentations/${pid}?fields=slides.objectId`,{
+      headers:{'Authorization':`Bearer ${token}`}
+    });
+    const presData=await presR.json();
+    firstSlideIds=(presData.slides||[]).map(s=>s.objectId);
+  } else {
+    // 프로토 없음 → 새 빈 프레젠테이션 생성
+    const cr=await fetch('https://slides.googleapis.com/v1/presentations',{
+      method:'POST',
+      headers:{'Authorization':`Bearer ${token}`,'Content-Type':'application/json'},
+      body:JSON.stringify({title:data.presTitle||'이러닝 슬라이드'})
+    });
+    if(!cr.ok) throw new Error('프레젠테이션 생성 실패');
+    const pres=await cr.json();
+    pid=pres.presentationId;
+    firstSlideIds=[pres.slides[0].objectId];
   }
+
+  document.getElementById('s4status').innerHTML='<span class="spinner"></span>슬라이드 내용 작성 중...';
+
+  // 2. 슬라이드 내용 10장씩 배치 처리
+  const batchSize=10;
+  for(let b=0;b<Math.ceil(data.slides.length/batchSize);b++){
+    const batch=data.slides.slice(b*batchSize,(b+1)*batchSize);
+    const reqs=[];
+
+    batch.forEach((s,j)=>{
+      const i=b*batchSize+j;
+      // 프로토 복사본의 기존 슬라이드는 재사용, 없으면 새로 생성
+      const existingId=firstSlideIds[i];
+      const sid=existingId||`sld${String(i+1).padStart(4,'0')}`;
+      const tid=`ttl${String(i+1).padStart(4,'0')}`;
+      const bid=`bdy${String(i+1).padStart(4,'0')}`;
+      const nid=`nte${String(i+1).padStart(4,'0')}`;
+
+      if(!existingId){
+        // 프로토에 없는 추가 슬라이드 생성
+        reqs.push({createSlide:{
+          objectId:sid,
+          insertionIndex:i,
+          slideLayoutReference:{predefinedLayout:['intro','objective'].includes(s.type)?'TITLE':'TITLE_AND_BODY'}
+        }});
+      }
+
+      // 텍스트 박스 생성 및 내용 삽입
+      reqs.push({createShape:{objectId:tid,shapeType:'TEXT_BOX',elementProperties:{
+        pageObjectId:sid,
+        size:{width:{magnitude:6800000,unit:'EMU'},height:{magnitude:900000,unit:'EMU'}},
+        transform:{scaleX:1,scaleY:1,translateX:457200,translateY:457200,unit:'EMU'}
+      }}});
+      reqs.push({insertText:{objectId:tid,text:s.title||''}});
+      reqs.push({updateTextStyle:{objectId:tid,style:{
+        fontSize:{magnitude:['intro','objective'].includes(s.type)?28:22,unit:'PT'},bold:true
+      },fields:'fontSize,bold'}});
+
+      reqs.push({createShape:{objectId:bid,shapeType:'TEXT_BOX',elementProperties:{
+        pageObjectId:sid,
+        size:{width:{magnitude:6800000,unit:'EMU'},height:{magnitude:3200000,unit:'EMU'}},
+        transform:{scaleX:1,scaleY:1,translateX:457200,translateY:1600000,unit:'EMU'}
+      }}});
+      reqs.push({insertText:{objectId:bid,text:s.body||''}});
+      reqs.push({updateTextStyle:{objectId:bid,style:{fontSize:{magnitude:16,unit:'PT'}},fields:'fontSize'}});
+
+      if(s.speakerNote){
+        reqs.push({createShape:{objectId:nid,shapeType:'TEXT_BOX',elementProperties:{
+          pageObjectId:sid,
+          size:{width:{magnitude:6800000,unit:'EMU'},height:{magnitude:500000,unit:'EMU'}},
+          transform:{scaleX:1,scaleY:1,translateX:457200,translateY:5500000,unit:'EMU'}
+        }}});
+        reqs.push({insertText:{objectId:nid,text:`📝 ${s.speakerNote}`}});
+        reqs.push({updateTextStyle:{objectId:nid,style:{
+          fontSize:{magnitude:11,unit:'PT'},italic:true,
+          foregroundColor:{opaqueColor:{rgbColor:{red:0.5,green:0.5,blue:0.5}}}
+        },fields:'fontSize,italic,foregroundColor'}});
+      }
+    });
+
+    if(reqs.length===0) continue;
+    const br=await fetch(`https://slides.googleapis.com/v1/presentations/${pid}:batchUpdate`,{
+      method:'POST',
+      headers:{'Authorization':`Bearer ${token}`,'Content-Type':'application/json'},
+      body:JSON.stringify({requests:reqs})
+    });
+    if(!br.ok){
+      const errData=await br.json();
+      throw new Error('슬라이드 내용 작성 실패: '+(errData.error?.message||JSON.stringify(errData)));
+    }
+    document.getElementById('s4status').innerHTML=`<span class="spinner"></span>슬라이드 작성 중... (${Math.min((b+1)*batchSize,data.slides.length)}/${data.slides.length}장)`;
+  }
+
+  // 3. 프로토 복사본에서 남은 기존 슬라이드 삭제 (새 슬라이드 수보다 많은 경우)
+  if(firstSlideIds.length>data.slides.length){
+    const deleteReqs=firstSlideIds.slice(data.slides.length).map(id=>({deleteObject:{objectId:id}}));
+    await fetch(`https://slides.googleapis.com/v1/presentations/${pid}:batchUpdate`,{
+      method:'POST',
+      headers:{'Authorization':`Bearer ${token}`,'Content-Type':'application/json'},
+      body:JSON.stringify({requests:deleteReqs})
+    });
+  }
+
   return pid;
 }
 
 function openSlides(){if(slidesUrl)window.open(slidesUrl,'_blank');}
-function reset(){mainF=null;protoF=null;slideData=null;slidesUrl='';clearMain();clearProto();goStep(2);}
+function reset(){mainF=null;protoF=null;protoSlidesId=null;protoLayouts=null;slideData=null;slidesUrl='';clearMain();clearProto();goStep(2);}
 function toB64(f){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(',')[1]);r.onerror=()=>rej(new Error('파일 읽기 실패'));r.readAsDataURL(f);});}
 
 // ── Download helpers ──────────────────────────────────────
