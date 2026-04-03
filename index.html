@@ -485,7 +485,7 @@ function buildBatchPrompts(data, batchSize=10){
     const chapterLabel=chapterSet.length>0?chapterSet.join(', '):'슬라이드 '+(i+1)+'~'+(i+chunk.length);
     const slidesStr=chunk.map(s=>{
       const kp=(s.keyPoints||[]).map((k,j)=>'  '+(j+1)+'. '+k).join('\n');
-      return '---\n슬라이드 '+s.num+'/'+data.totalSlides+' | 유형: '+s.type+' | 레이아웃: '+(s.layoutHint||'content')+'\n제목: '+s.title+'\n본문: '+(s.body||'')+(kp?'\n핵심포인트:\n'+kp:'')++'\n디자인지시: '+(s.canvaPrompt||'');
+      return '---\n슬라이드 '+s.num+'/'+data.totalSlides+' | 유형: '+s.type+' | 레이아웃: '+(s.layoutHint||'content')+'\n제목: '+s.title+'\n본문: '+(s.body||'')+(kp?'\n핵심포인트:\n'+kp:'')+'\n디자인지시: '+(s.canvaPrompt||'');
     }).join('\n');
 
     const prefix=isFirst
