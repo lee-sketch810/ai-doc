@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>이러닝 슬라이드 생성기</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #ffffff; --bg2: #f7f7f5; --bg3: #f0efe9;
+    --text: #1a1a1a; --text2: #555; --text3: #999;
+    --border: rgba(0,0,0,0.12); --border2: rgba(0,0,0,0.22);
+    --blue: #185FA5; --blue-bg: #E6F1FB; --blue-text: #0C447C;
+    --green: #1D9E75; --green-bg: #EAF3DE; --green-text: #27500A;
+    --amber-bg: #FAEEDA; --amber-border: #BA7517; --amber-text: #633806;
+    --red-bg: #FCEBEB; --red-border: #A32D2D; --red-text: #791F1F;
+    --radius: 8px; --radius-lg: 12px;
+  }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg3); color: var(--text); min-height: 100vh; }
+
+  /* Header */
+  .header { background: var(--bg); border-bottom: 0.5px solid var(--border); padding: 14px 24px; display: flex; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 10; }
+  .header-icon { width: 32px; height: 32px; background: var(--blue); border-radius: var(--radius); display: flex; align-items: center; justify-content: center; color: #E6F1FB; font-size: 16px; }
+  .header-title { font-size: 15px; font-weight: 600; }
+  .header-sub { font-size: 12px; color: var(--text3); margin-left: auto; }
+
+  /* Layout */
+  .container { max-width: 780px; margin: 0 auto; padding: 2rem 1rem 4rem; }
+
+  /* Progress */
+  .prog-wrap { display: flex; align-items: center; gap: 0; margin-bottom: 2rem; }
+  .ps { display: flex; align-items: center; flex: 1; }
+  .ps-dot { width: 30px; height: 30px; border-radius: 50%; border: 1.5px solid var(--border2); background: var(--bg); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; color: var(--text3); flex-shrink: 0; z-index:1; transition: all 0.2s; }
+  .ps.active .ps-dot { background: var(--blue); border-color: var(--blue); color: #E6F1FB; }
+  .ps.done .ps-dot { background: var(--green); border-color: var(--green); color: var(--green-bg); }
+  .ps-label { font-size: 11px; color: var(--text3); margin-left: 6px; white-space: nowrap; }
+  .ps.active .ps-label, .ps.done .ps-label { color: var(--text2); }
+  .ps-line { flex: 1; height: 1px; background: var(--border); margin: 0 4px; }
+
+  /* Cards */
+  .card { background: var(--bg); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 1.75rem; margin-bottom: 1rem; }
+  .card-title { font-size: 17px; font-weight: 600; margin-bottom: 1.25rem; }
+
+  /* Steps */
+  .step { display: none; }
+  .step.active { display: block; }
+
+  /* Form */
+  .field { margin-bottom: 1rem; }
+  .lbl { font-size: 12px; color: var(--text2); margin-bottom: 5px; display: block; font-weight: 500; }
+  .inp { width: 100%; padding: 9px 12px; border: 1px solid var(--border2); border-radius: var(--radius); font-size: 14px; background: var(--bg); color: var(--text); outline: none; transition: border 0.15s; }
+  .inp:focus { border-color: var(--blue); }
+  .pw-wrap { position: relative; }
+  .pw-wrap .inp { padding-right: 40px; }
+  .eye { position: absolute; right: 11px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--text3); font-size: 15px; padding: 0; }
+  textarea.inp { resize: vertical; min-height: 76px; font-family: inherit; }
+
+  /* Buttons */
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 20px; border: 1px solid var(--border2); border-radius: var(--radius); background: transparent; color: var(--text); font-size: 13px; cursor: pointer; transition: background 0.15s; font-weight: 500; }
+  .btn:hover { background: var(--bg2); }
+  .btn-primary { background: var(--blue); color: #E6F1FB; border-color: var(--blue); }
+  .btn-primary:hover { background: #0C447C; }
+  .btn-row { display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem; }
+
+  /* Drop zone */
+  .drop { border: 2px dashed var(--border2); border-radius: var(--radius-lg); padding: 2rem 1rem; text-align: center; cursor: pointer; transition: all 0.15s; }
+  .drop:hover, .drop.over { background: var(--bg2); border-color: var(--blue); }
+  .drop-icon { font-size: 28px; margin-bottom: 8px; }
+  .drop-title { font-size: 14px; color: var(--text2); }
+  .drop-sub { font-size: 12px; color: var(--text3); margin-top: 4px; }
+  .fbadge { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; background: var(--bg2); border: 0.5px solid var(--border); border-radius: var(--radius); font-size: 13px; margin-top: 10px; }
+  .rm { cursor: pointer; color: var(--text3); font-size: 16px; line-height: 1; }
+  .rm:hover { color: var(--text); }
+
+  /* Style chips */
+  .chip-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+  .chip { padding: 6px 14px; border: 1px solid var(--border2); border-radius: 99px; font-size: 13px; cursor: pointer; transition: all 0.15s; background: var(--bg); }
+  .chip.selected { background: var(--blue); color: #E6F1FB; border-color: var(--blue); }
+
+  /* Section sep */
+  .sep { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.07em; margin: 1.5rem 0 0.75rem; border-top: 0.5px solid var(--border); padding-top: 1rem; }
+
+  /* Proto indicator */
+  .proto-ind { display: flex; align-items: center; gap: 8px; padding: 9px 12px; background: var(--blue-bg); border-left: 2px solid var(--blue); border-radius: 0 var(--radius) var(--radius) 0; font-size: 12px; color: var(--blue-text); margin-top: 8px; }
+
+  /* Spinner */
+  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--blue); border-radius: 50%; animation: sp 0.7s linear infinite; vertical-align: middle; margin-right: 6px; }
+  @keyframes sp { to { transform: rotate(360deg); } }
+  .status-msg { font-size: 13px; color: var(--text2); padding: 12px 0; }
+
+  /* Meta row */
+  .meta-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin: 1rem 0; }
+  .meta-box { background: var(--bg2); border-radius: var(--radius); padding: 10px 14px; }
+  .meta-k { font-size: 11px; color: var(--text3); margin-bottom: 3px; }
+  .meta-v { font-size: 14px; font-weight: 600; }
+
+  /* Slide grid */
+  .slide-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(185px, 1fr)); gap: 10px; margin-top: 1rem; }
+  .sc { background: var(--bg2); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 12px; min-height: 110px; }
+  .sc-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; }
+  .sc-num { font-size: 10px; color: var(--text3); }
+  .sc-title { font-size: 12px; font-weight: 600; line-height: 1.4; margin-bottom: 4px; }
+  .sc-body { font-size: 11px; color: var(--text2); line-height: 1.5; }
+  .tag { display: inline-block; font-size: 10px; padding: 2px 7px; border-radius: 99px; }
+  .tag-blue { background: #E6F1FB; color: #0C447C; }
+  .tag-green { background: #EAF3DE; color: #27500A; }
+  .tag-amber { background: #FAEEDA; color: #633806; }
+  .tag-purple { background: #EEEDFE; color: #3C3489; }
+
+  /* Notices */
+  .note { background: var(--amber-bg); border-left: 2px solid var(--amber-border); border-radius: 0 var(--radius) var(--radius) 0; padding: 10px 13px; font-size: 12px; color: var(--amber-text); line-height: 1.6; margin-top: 10px; }
+  .err-box { background: var(--red-bg); border: 0.5px solid var(--red-border); border-radius: var(--radius); padding: 12px 14px; color: var(--red-text); font-size: 13px; margin-top: 10px; }
+  .success-box { background: var(--green-bg); border: 0.5px solid var(--green); border-radius: var(--radius); padding: 14px 16px; display: flex; gap: 12px; align-items: flex-start; }
+  .success-icon { font-size: 22px; color: var(--green); flex-shrink: 0; }
+  .divider { border: none; border-top: 0.5px solid var(--border); margin: 1.25rem 0; }
+
+  details summary { font-size: 12px; color: var(--text3); cursor: pointer; margin-top: 8px; }
+  details p { font-size: 12px; color: var(--text3); margin-top: 6px; line-height: 1.7; padding-left: 4px; }
+  code { background: var(--bg2); border: 0.5px solid var(--border); border-radius: 4px; padding: 1px 5px; font-size: 11px; font-family: 'SF Mono', monospace; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-icon">📊</div>
+  <div class="header-title">이러닝 슬라이드 생성기</div>
+  <div class="header-sub">문서 → Google Slides 자동 변환</div>
+</div>
+
+<div class="container">
+
+  <!-- Progress -->
+  <div class="prog-wrap" id="prog">
+    <div class="ps active" id="p1"><div class="ps-dot">1</div><span class="ps-label">API 설정</span></div>
+    <div class="ps-line"></div>
+    <div class="ps" id="p2"><div class="ps-dot">2</div><span class="ps-label">문서 업로드</span></div>
+    <div class="ps-line"></div>
+    <div class="ps" id="p3"><div class="ps-dot">3</div><span class="ps-label">AI 분석</span></div>
+    <div class="ps-line"></div>
+    <div class="ps" id="p4"><div class="ps-dot">4</div><span class="ps-label">슬라이드 생성</span></div>
+  </div>
+
+  <!-- STEP 1: API 설정 -->
+  <div class="step active" id="step1">
+    <div class="card">
+      <div class="card-title">API 키 설정</div>
+
+      <div class="field">
+        <label class="lbl">Anthropic API Key</label>
+        <div class="pw-wrap">
+          <input class="inp" type="password" id="anthropicKey" placeholder="sk-ant-..." />
+          <button class="eye" onclick="tpw('anthropicKey')">👁</button>
+        </div>
+        <details>
+          <summary>어디서 발급받나요?</summary>
+          <p>console.anthropic.com → API Keys → Create Key. 무료 크레딧으로 시작 가능합니다.</p>
+        </details>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="field">
+        <label class="lbl">Google OAuth Client ID</label>
+        <div class="pw-wrap">
+          <input class="inp" type="password" id="clientId" placeholder="xxxx.apps.googleusercontent.com" />
+          <button class="eye" onclick="tpw('clientId')">👁</button>
+        </div>
+      </div>
+      <div class="field">
+        <label class="lbl">Google OAuth Client Secret</label>
+        <div class="pw-wrap">
+          <input class="inp" type="password" id="clientSecret" placeholder="GOCSPX-..." />
+          <button class="eye" onclick="tpw('clientSecret')">👁</button>
+        </div>
+        <div class="note">입력한 키는 브라우저 메모리에만 저장되며 서버로 전송되지 않습니다.</div>
+      </div>
+
+      <div class="btn-row">
+        <div></div>
+        <button class="btn btn-primary" onclick="goStep(2)">다음 →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 2: 파일 업로드 -->
+  <div class="step" id="step2">
+    <div class="card">
+      <div class="card-title">문서 업로드</div>
+
+      <div class="sep" style="margin-top:0; border-top:none; padding-top:0;">변환할 문서 <span class="tag tag-blue">필수</span></div>
+      <div class="drop" id="mainDrop"
+        onclick="document.getElementById('mainFile').click()"
+        ondragover="dov(event,'mainDrop')" ondragleave="dlv('mainDrop')" ondrop="ddr(event,'mainDrop',setMain)">
+        <div class="drop-icon">📄</div>
+        <div class="drop-title">PDF 또는 Word 파일을 여기에 드래그하거나 클릭</div>
+        <div class="drop-sub">.pdf · .docx 지원 · 최대 20MB</div>
+      </div>
+      <input type="file" id="mainFile" accept=".pdf,.docx,.doc" style="display:none" onchange="setMain(this.files[0])">
+      <div id="mainBadge" style="display:none;"></div>
+
+      <div class="sep">참조 문서 (프로토) <span class="tag tag-amber">선택</span></div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:8px;line-height:1.6;">업로드 시 레이아웃 구조·섹션 구성·슬라이드 유형 비율을 분석해 동일한 형식으로 생성합니다.</div>
+      <div class="drop" id="protoDrop"
+        onclick="document.getElementById('protoFile').click()"
+        ondragover="dov(event,'protoDrop')" ondragleave="dlv('protoDrop')" ondrop="ddr(event,'protoDrop',setProto)">
+        <div class="drop-icon">🗂</div>
+        <div class="drop-title">형식 참조용 프로토 문서</div>
+        <div class="drop-sub">.pdf · .docx 지원</div>
+      </div>
+      <input type="file" id="protoFile" accept=".pdf,.docx,.doc" style="display:none" onchange="setProto(this.files[0])">
+      <div id="protoBadge" style="display:none;"></div>
+
+      <div class="sep">추가 설정</div>
+      <div class="field">
+        <label class="lbl">슬라이드 스타일</label>
+        <div class="chip-row" id="styleChips">
+          <div class="chip selected" data-v="비즈니스">비즈니스</div>
+          <div class="chip" data-v="학술">학술</div>
+          <div class="chip" data-v="창의적">창의적</div>
+          <div class="chip" data-v="심플">심플</div>
+        </div>
+      </div>
+      <div class="field">
+        <label class="lbl">추가 지시사항 (선택)</label>
+        <textarea class="inp" id="extra" placeholder="예: 슬라이드 8장, 퀴즈 슬라이드 2개 포함, 각 슬라이드 핵심 포인트 3개..."></textarea>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn" onclick="goStep(1)">← 이전</button>
+        <button class="btn btn-primary" onclick="startAnalysis()">AI 분석 시작 →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 3: AI 분석 -->
+  <div class="step" id="step3">
+    <div class="card">
+      <div class="card-title">AI 교수설계 분석</div>
+      <div id="s3status" class="status-msg"><span class="spinner"></span>문서를 읽고 이러닝 교수설계 원칙을 적용하는 중...</div>
+      <div id="s3result" style="display:none;">
+        <div class="meta-row" id="metaRow"></div>
+        <div class="divider"></div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:4px;">슬라이드 구성 미리보기</div>
+        <div class="slide-grid" id="slideGrid"></div>
+        <div id="s3err"></div>
+        <div class="btn-row">
+          <button class="btn" onclick="goStep(2)">← 다시 업로드</button>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn" onclick="downloadJSON()">📥 JSON</button>
+            <button class="btn" onclick="downloadCSV()">📥 CSV</button>
+            <button class="btn btn-primary" onclick="exportSlides()">Google Slides로 내보내기 →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 4: 내보내기 -->
+  <div class="step" id="step4">
+    <div class="card">
+      <div class="card-title">Google Slides 생성</div>
+      <div id="s4status" class="status-msg"><span class="spinner"></span>Google 계정 인증 중...</div>
+      <div id="s4result" style="display:none;">
+        <div class="success-box">
+          <div class="success-icon">✓</div>
+          <div>
+            <div style="font-weight:600;font-size:15px;color:var(--green-text);">슬라이드 생성 완료!</div>
+            <div style="font-size:12px;color:#3B6D11;margin-top:3px;">Google Drive에 저장되었습니다.</div>
+          </div>
+        </div>
+        <div style="margin-top:1rem;display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-primary" onclick="openSlides()">Google Slides 열기 ↗</button>
+          <button class="btn" onclick="downloadJSON()">📥 JSON 다운로드</button>
+          <button class="btn" onclick="downloadCSV()">📥 CSV 다운로드</button>
+          <button class="btn" onclick="reset()">새 문서 변환</button>
+        </div>
+      </div>
+      <div id="s4err"></div>
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<script>
+let mainF=null, protoF=null, slideData=null, slidesUrl='', selectedStyle='비즈니스';
+
+// ── UI helpers ──────────────────────────────────────────
+function tpw(id){const e=document.getElementById(id);e.type=e.type==='password'?'text':'password';}
+
+function goStep(n){
+  document.querySelectorAll('.step').forEach(s=>s.classList.remove('active'));
+  document.getElementById('step'+n).classList.add('active');
+  ['p1','p2','p3','p4'].forEach((id,i)=>{
+    const el=document.getElementById(id);
+    el.classList.remove('active','done');
+    if(i+1<n) el.classList.add('done');
+    else if(i+1===n) el.classList.add('active');
+  });
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+// style chips
+document.getElementById('styleChips').addEventListener('click',e=>{
+  const chip=e.target.closest('.chip');
+  if(!chip) return;
+  document.querySelectorAll('.chip').forEach(c=>c.classList.remove('selected'));
+  chip.classList.add('selected');
+  selectedStyle=chip.dataset.v;
+});
+
+// ── Drop / File ──────────────────────────────────────────
+function dov(e,id){e.preventDefault();document.getElementById(id).classList.add('over');}
+function dlv(id){document.getElementById(id).classList.remove('over');}
+function ddr(e,dropId,setter){e.preventDefault();dlv(dropId);const f=e.dataTransfer.files[0];if(f)setter(f);}
+
+function makeBadge(badgeId,f,clearFn){
+  const el=document.getElementById(badgeId);
+  el.style.display='block';
+  el.innerHTML=`<div class="fbadge">📎 ${f.name} (${(f.size/1024/1024).toFixed(1)}MB) <span class="rm" onclick="${clearFn}()">✕</span></div>`;
+}
+function setMain(f){mainF=f;makeBadge('mainBadge',f,'clearMain');}
+function setProto(f){
+  protoF=f;makeBadge('protoBadge',f,'clearProto');
+  if(!document.getElementById('protoInd')){
+    const d=document.createElement('div');d.id='protoInd';d.className='proto-ind';
+    d.innerHTML='🔵 프로토 형식 반영 활성화 — 레이아웃·섹션 구조·슬라이드 유형 비율을 분석합니다';
+    document.getElementById('protoBadge').after(d);
+  }
+}
+function clearMain(){mainF=null;document.getElementById('mainBadge').style.display='none';document.getElementById('mainFile').value='';}
+function clearProto(){
+  protoF=null;document.getElementById('protoBadge').style.display='none';document.getElementById('protoFile').value='';
+  const i=document.getElementById('protoInd');if(i)i.remove();
+}
+
+// ── AI Analysis ──────────────────────────────────────────
+async function startAnalysis(){
+  const key=document.getElementById('anthropicKey').value.trim();
+  if(!key){alert('Anthropic API Key를 입력해주세요.');goStep(1);return;}
+  if(!mainF){alert('변환할 문서를 업로드해주세요.');return;}
+  goStep(3);
+  const st=document.getElementById('s3status');
+  const res=document.getElementById('s3result');
+  st.style.display='block'; res.style.display='none';
+
+  const msgs=['문서 내용 파싱 중...','교수설계 프레임워크 선택 중...','이러닝 원칙 적용 중...','슬라이드 구조 생성 중...'];
+  let mi=0;
+  const iv=setInterval(()=>{if(mi<msgs.length)st.innerHTML=`<span class="spinner"></span>${msgs[mi++]}`;},1800);
+
+  try {
+    const mainB64=await toB64(mainF);
+    const protoB64=protoF?await toB64(protoF):null;
+
+    const protoBlock=protoF?`\n프로토 참조 문서가 함께 제공됩니다. 이 문서의 다음 요소를 분석하여 동일하게 적용하세요:
+- 레이아웃 구조 (슬라이드 섹션 배열 방식)
+- 섹션 구성 패턴 (도입-전개-정리 흐름)
+- 슬라이드 유형 구성 비율
+- 각 슬라이드의 텍스트 밀도 및 정보 구조`:'';
+
+    const extra=document.getElementById('extra').value;
+    const prompt=`당신은 이러닝 교수설계 전문가입니다. 제공된 문서를 분석하여 최적의 이러닝 슬라이드 구조를 설계하세요.
+
+[교수설계 원칙]
+1. 문서 성격 파악 (개념학습/절차학습/태도변화/평가)
+2. 성격에 맞는 프레임워크 자동 선택:
+   - 개념/지식 전달 → Gagne 9 Events
+   - 절차/기술 학습 → Merrill First Principles
+   - 혼합/일반 → ADDIE 기반 마이크로러닝
+3. One Concept Per Slide 원칙
+4. 인지 부하 최소화: 슬라이드당 텍스트 3줄 이내
+5. 학습자 참여: 퀴즈/반성/체크 슬라이드 포함
+6. 명확한 흐름: 도입→전개→정리→평가 구조
+7. 스타일: ${selectedStyle}${protoBlock}
+${extra?`\n[추가 지시사항]\n${extra}`:''}
+
+아래 JSON 형식만 반환하세요. 코드블록이나 다른 텍스트 없이:
+{"presTitle":"제목","framework":"프레임워크명","learningType":"학습유형","totalSlides":숫자,"slides":[{"num":1,"type":"intro|objective|concept|procedure|activity|quiz|summary|transfer","title":"슬라이드 제목","body":"핵심 내용 2-3줄","speakerNote":"강사 노트 한 줄"}]}`;
+
+    const content=[];
+    if(mainF.name.toLowerCase().endsWith('.pdf'))
+      content.push({type:'document',source:{type:'base64',media_type:'application/pdf',data:mainB64}});
+    else
+      content.push({type:'text',text:`[변환 문서 업로드됨 — 파일명: ${mainF.name}]`});
+
+    if(protoB64){
+      if(protoF.name.toLowerCase().endsWith('.pdf'))
+        content.push({type:'document',source:{type:'base64',media_type:'application/pdf',data:protoB64}});
+      else
+        content.push({type:'text',text:`[프로토 참조 문서 업로드됨 — 파일명: ${protoF.name}]`});
+    }
+    content.push({type:'text',text:prompt});
+
+    const r=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01'},
+      body:JSON.stringify({model:'claude-opus-4-5',max_tokens:2000,messages:[{role:'user',content}]})
+    });
+    if(!r.ok){const e=await r.json();throw new Error(e.error?.message||`HTTP ${r.status}`);}
+    const d=await r.json();
+    clearInterval(iv);
+    const txt=d.content.map(i=>i.text||'').join('').replace(/```json|```/g,'').trim();
+    slideData=JSON.parse(txt);
+
+    renderMeta(slideData);
+    renderSlides(slideData.slides);
+    st.innerHTML='<span style="color:var(--green);font-weight:600;">✓ 분석 완료</span>';
+    res.style.display='block';
+  } catch(e) {
+    clearInterval(iv);
+    st.style.display='none';
+    document.getElementById('s3err').innerHTML=`<div class="err-box">오류: ${e.message}</div>`;
+    document.getElementById('s3result').style.display='block';
+  }
+}
+
+const typeLabel={intro:'도입',objective:'학습목표',concept:'개념',procedure:'절차',activity:'활동',quiz:'퀴즈',summary:'정리',transfer:'전이·적용'};
+const typeColor={intro:'tag-blue',objective:'tag-purple',concept:'tag-blue',procedure:'tag-amber',activity:'tag-green',quiz:'tag-amber',summary:'tag-blue',transfer:'tag-green'};
+
+function renderMeta(d){
+  document.getElementById('metaRow').innerHTML=`
+    <div class="meta-box"><div class="meta-k">프레임워크</div><div class="meta-v">${d.framework||'-'}</div></div>
+    <div class="meta-box"><div class="meta-k">학습 유형</div><div class="meta-v">${d.learningType||'-'}</div></div>
+    <div class="meta-box"><div class="meta-k">총 슬라이드</div><div class="meta-v">${d.totalSlides||d.slides.length}장</div></div>
+    ${protoF?'<div class="meta-box"><div class="meta-k">프로토 적용</div><div class="meta-v" style="color:var(--blue);">✓ 반영됨</div></div>':''}`;
+}
+
+function renderSlides(slides){
+  document.getElementById('slideGrid').innerHTML=slides.map(s=>`
+    <div class="sc">
+      <div class="sc-head"><span class="sc-num">슬라이드 ${s.num}</span><span class="tag ${typeColor[s.type]||'tag-blue'}">${typeLabel[s.type]||s.type}</span></div>
+      <div class="sc-title">${s.title}</div>
+      <div class="sc-body">${s.body}</div>
+    </div>`).join('');
+}
+
+// ── Google Slides Export ──────────────────────────────────
+async function exportSlides(){
+  const cid=document.getElementById('clientId').value.trim();
+  if(!cid){alert('Google OAuth Client ID를 입력해주세요.');goStep(1);return;}
+  goStep(4);
+  const st=document.getElementById('s4status');
+  st.style.display='block';
+  document.getElementById('s4result').style.display='none';
+  st.innerHTML='<span class="spinner"></span>Google 계정 인증 중...';
+  try {
+    const token=await getToken(cid);
+    st.innerHTML='<span class="spinner"></span>슬라이드 생성 중...';
+    const pid=await buildSlides(token,slideData);
+    slidesUrl=`https://docs.google.com/presentation/d/${pid}/edit`;
+    st.style.display='none';
+    document.getElementById('s4result').style.display='block';
+  } catch(e) {
+    st.style.display='none';
+    document.getElementById('s4err').innerHTML=`<div class="err-box">오류: ${e.message}</div>`;
+  }
+}
+
+function getToken(clientId){
+  return new Promise((res,rej)=>{
+    const scope='https://www.googleapis.com/auth/presentations https://www.googleapis.com/auth/drive';
+    const origin=window.location.origin;
+    const url=`https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(origin)}&response_type=token&scope=${encodeURIComponent(scope)}`;
+    const p=window.open(url,'g_auth','width=520,height=620');
+    const t=setInterval(()=>{
+      try{
+        const h=p.location.hash;
+        if(h&&h.includes('access_token')){clearInterval(t);p.close();res(new URLSearchParams(h.slice(1)).get('access_token'));}
+      }catch(e){}
+      if(p.closed){clearInterval(t);rej(new Error('인증 창이 닫혔습니다.'));}
+    },500);
+  });
+}
+
+async function buildSlides(token,data){
+  const cr=await fetch('https://slides.googleapis.com/v1/presentations',{
+    method:'POST',
+    headers:{'Authorization':`Bearer ${token}`,'Content-Type':'application/json'},
+    body:JSON.stringify({title:data.presTitle||'이러닝 슬라이드'})
+  });
+  if(!cr.ok) throw new Error('프레젠테이션 생성 실패');
+  const pres=await cr.json();
+  const pid=pres.presentationId;
+  const firstId=pres.slides[0].objectId;
+  const reqs=[];
+
+  data.slides.forEach((s,i)=>{
+    if(i===0) reqs.push({deleteObject:{objectId:firstId}});
+    const sid=`sl_${i}`,tid=`tl_${i}`,bid=`bd_${i}`,nid=`nt_${i}`;
+    reqs.push({createSlide:{objectId:sid,insertionIndex:i,slideLayoutReference:{predefinedLayout:['intro','objective'].includes(s.type)?'TITLE':'TITLE_AND_BODY'}}});
+    reqs.push({createShape:{objectId:tid,shapeType:'TEXT_BOX',elementProperties:{pageObjectId:sid,size:{width:{magnitude:6800000,unit:'EMU'},height:{magnitude:900000,unit:'EMU'}},transform:{scaleX:1,scaleY:1,translateX:457200,translateY:457200,unit:'EMU'}}}});
+    reqs.push({insertText:{objectId:tid,text:s.title}});
+    reqs.push({updateTextStyle:{objectId:tid,style:{fontSize:{magnitude:s.type==='intro'?32:24,unit:'PT'},bold:true},fields:'fontSize,bold'}});
+    reqs.push({createShape:{objectId:bid,shapeType:'TEXT_BOX',elementProperties:{pageObjectId:sid,size:{width:{magnitude:6800000,unit:'EMU'},height:{magnitude:3200000,unit:'EMU'}},transform:{scaleX:1,scaleY:1,translateX:457200,translateY:1600000,unit:'EMU'}}}});
+    reqs.push({insertText:{objectId:bid,text:s.body}});
+    reqs.push({updateTextStyle:{objectId:bid,style:{fontSize:{magnitude:16,unit:'PT'}},fields:'fontSize'}});
+    if(s.speakerNote){
+      reqs.push({createShape:{objectId:nid,shapeType:'TEXT_BOX',elementProperties:{pageObjectId:sid,size:{width:{magnitude:6800000,unit:'EMU'},height:{magnitude:500000,unit:'EMU'}},transform:{scaleX:1,scaleY:1,translateX:457200,translateY:5500000,unit:'EMU'}}}});
+      reqs.push({insertText:{objectId:nid,text:`📝 ${s.speakerNote}`}});
+      reqs.push({updateTextStyle:{objectId:nid,style:{fontSize:{magnitude:11,unit:'PT'},italic:true,foregroundColor:{opaqueColor:{rgbColor:{red:0.5,green:0.5,blue:0.5}}}},fields:'fontSize,italic,foregroundColor'}});
+    }
+  });
+
+  const br=await fetch(`https://slides.googleapis.com/v1/presentations/${pid}:batchUpdate`,{
+    method:'POST',
+    headers:{'Authorization':`Bearer ${token}`,'Content-Type':'application/json'},
+    body:JSON.stringify({requests:reqs})
+  });
+  if(!br.ok) throw new Error('슬라이드 내용 작성 실패');
+  return pid;
+}
+
+function openSlides(){if(slidesUrl)window.open(slidesUrl,'_blank');}
+function reset(){mainF=null;protoF=null;slideData=null;slidesUrl='';clearMain();clearProto();goStep(2);}
+function toB64(f){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(',')[1]);r.onerror=()=>rej(new Error('파일 읽기 실패'));r.readAsDataURL(f);});}
+
+// ── Download helpers ──────────────────────────────────────
+function downloadJSON(){
+  if(!slideData){alert('먼저 AI 분석을 실행해주세요.');return;}
+  const blob=new Blob([JSON.stringify(slideData,null,2)],{type:'application/json'});
+  triggerDownload(blob,`${slideData.presTitle||'슬라이드'}_구성.json`);
+}
+
+function downloadCSV(){
+  if(!slideData){alert('먼저 AI 분석을 실행해주세요.');return;}
+  const header='슬라이드번호,유형,제목,내용,강사노트';
+  const rows=slideData.slides.map(s=>
+    [s.num, s.type, `"${(s.title||'').replace(/"/g,'""')}"`, `"${(s.body||'').replace(/"/g,'""')}"`, `"${(s.speakerNote||'').replace(/"/g,'""')}"`].join(',')
+  );
+  const csv='\uFEFF'+[header,...rows].join('\n'); // BOM for Excel 한글 인코딩
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
+  triggerDownload(blob,`${slideData.presTitle||'슬라이드'}_구성.csv`);
+}
+
+function triggerDownload(blob,filename){
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download=filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+</script>
+</body>
+</html>
