@@ -394,8 +394,7 @@ async function extractText(file){
           if(/[가-힣]/.test(a)&&/[가-힣]/.test(b)) return a+b;
           return m;
         })
-        .replace(/
-{3,}/g,'\n\n')  // 3줄 이상 빈줄 → 2줄
+        .replace(/\n{3,}/g,'\n\n')  // 3줄 이상 빈줄 → 2줄
         .trim();
       console.log('추출된 텍스트 미리보기:', text.slice(0,300));
       if(text.trim().length>50) return text.trim().slice(0,8000);
