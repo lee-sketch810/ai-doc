@@ -1,5 +1,8 @@
 export const config = {
-  api: { bodyParser: { sizeLimit: '20mb' } }
+  api: {
+    bodyParser: { sizeLimit: '20mb' },
+    maxDuration: 60
+  }
 };
 
 function cleanText(text) {
@@ -32,7 +35,6 @@ export default async function handler(req, res) {
     const body = req.body || {};
     const { apiKey, prompt, rawText } = body;
 
-    // 텍스트 정제 모드
     if (rawText !== undefined) {
       return res.status(200).json({ cleaned: cleanText(rawText) });
     }
@@ -45,28 +47,37 @@ export default async function handler(req, res) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        system_instruction: { parts: [{ text: "You are a JSON API. Always respond with valid JSON only. No markdown, no explanation, no code blocks. Pure JSON only." }] },
+        system_instruction: { parts: [{ text: "You are a JSON API. Respond with valid JSON only. No markdown, no code blocks, no explanation. Pure JSON only." }] },
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.1, maxOutputTokens: 8192, responseMimeType: "application/json" }
+        generationConfig: {
+          temperature: 0.1,
+          maxOutputTokens: 8192,
+          responseMimeType: "application/json"
+        }
       })
     });
 
-    // 응답을 텍스트로 먼저 읽기
     const rawResponse = await response.text();
 
-    // JSON 파싱 시도
     let data;
     try {
       data = JSON.parse(rawResponse);
     } catch (e) {
-      return res.status(500).json({ error: { message: 'Gemini 응답 파싱 실패: ' + rawResponse.slice(0, 200) } });
+      return res.status(500).json({ error: { message: 'Gemini 응답 파싱 실패: ' + rawResponse.slice(0, 300) } });
     }
 
     if (!response.ok) {
-      return res.status(response.status).json({ error: { message: data.error?.message || 'Gemini API 오류' } });
+      return res.status(response.status).json({
+        error: { message: data.error?.message || 'Gemini API 오류 (HTTP ' + response.status + ')' }
+      });
     }
 
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    if (!text) {
+      const reason = data.candidates?.[0]?.finishReason || 'unknown';
+      return res.status(500).json({ error: { message: 'Gemini 응답 없음. 종료 이유: ' + reason } });
+    }
+
     res.status(200).json({ text });
   } catch (e) {
     res.status(500).json({ error: { message: e.message } });
