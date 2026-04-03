@@ -489,31 +489,42 @@ async function startAnalysis(){
     const batchSize = 10;
     const totalBatches = Math.ceil(targetSlides / batchSize);
 
-    const structPrompt=`당신은 이러닝 교수설계 전문가입니다. 아래 문서를 분석하여 ${targetSlides}장 슬라이드의 전체 목차 구조만 설계하세요.
+    // 목차를 20장씩 나눠서 받기
+    const outlineAll = [];
+    const outlineBatchSize = 20;
+    const outlineBatches = Math.ceil(targetSlides / outlineBatchSize);
+    let presTitle='', framework='', learningType='';
 
-[문서 내용]
-${mainText}
-${protoBlock}
+    for(let ob=0; ob<outlineBatches; ob++){
+      const oStart = ob*outlineBatchSize+1;
+      const oEnd = Math.min((ob+1)*outlineBatchSize, targetSlides);
+      st.innerHTML=`<span class="spinner"></span>목차 구조 설계 중... (${oStart}~${oEnd}번 / 총 ${targetSlides}장)`;
 
-[교수설계 원칙]
-- 프레임워크: 문서 성격에 맞게 자동 선택 (Gagne/Merrill/ADDIE)
-- 흐름: 도입→전개→정리→평가
+      const structPrompt=`이러닝 교수설계 전문가입니다. 문서를 분석해 슬라이드 목차를 설계하세요.
+
+[문서]
+${mainText.slice(0,4000)}
+
+[조건]
+- 프레임워크: 문서 성격에 맞게 자동 선택(Gagne/Merrill/ADDIE)
 - 스타일: ${selectedStyle}
-${extra?`[추가 지시사항] ${extra}`:''}
+- 흐름: 도입→전개→정리→평가
+${extra?`- 추가: ${extra}`:''}
 
-아래 JSON만 반환 (다른 텍스트 절대 금지):
-{"presTitle":"제목","framework":"프레임워크명","learningType":"학습유형","totalSlides":${targetSlides},"outline":[{"num":1,"type":"intro","title":"제목"},{"num":2,"type":"objective","title":"제목"}]}
+num ${oStart}부터 ${oEnd}까지 정확히 ${oEnd-oStart+1}개 슬라이드 목차만 반환.
+JSON만 반환(다른 텍스트 금지):
+{"presTitle":"제목","framework":"프레임워크","learningType":"학습유형","outline":[{"num":${oStart},"type":"intro","title":"슬라이드제목"}]}`;
 
-outline에 1번부터 ${targetSlides}번까지 모든 슬라이드 포함.`;
+      const sd = await fetchBatch(key, structPrompt);
+      if(ob===0){ presTitle=sd.presTitle||'이러닝 슬라이드'; framework=sd.framework||'ADDIE'; learningType=sd.learningType||'이론 학습'; }
+      if(sd.outline && Array.isArray(sd.outline)) outlineAll.push(...sd.outline);
+    }
 
-    const structData = await fetchBatch(key, structPrompt);
-    slideData = {
-      presTitle: structData.presTitle,
-      framework: structData.framework,
-      learningType: structData.learningType,
-      totalSlides: targetSlides,
-      slides: []
-    };
+    slideData = { presTitle, framework, learningType, totalSlides: targetSlides, slides:[] };
+    const structData = { outline: outlineAll };
+    const dummy = structData;
+
+
 
     // 2단계: 배치별로 상세 내용 생성
     for(let b=0; b<totalBatches; b++){
