@@ -10,21 +10,23 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    const { apiKey, messages, model, max_tokens } = req.body;
+    const { apiKey, prompt } = req.body;
     if (!apiKey) return res.status(400).json({ error: { message: 'API key가 없습니다.' } });
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    const response = await fetch(url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01'
-      },
-      body: JSON.stringify({ model: model || 'claude-opus-4-5', max_tokens: max_tokens || 2000, messages })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.3, maxOutputTokens: 2000 }
+      })
     });
     const data = await response.json();
-    if (!response.ok) return res.status(response.status).json(data);
-    res.status(200).json(data);
+    if (!response.ok) return res.status(response.status).json({ error: { message: data.error?.message || 'Gemini API 오류' } });
+
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    res.status(200).json({ text });
   } catch (e) {
     res.status(500).json({ error: { message: e.message } });
   }
