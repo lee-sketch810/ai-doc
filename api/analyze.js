@@ -18,8 +18,9 @@ export default async function handler(req, res) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        system_instruction: { parts: [{ text: "You are a JSON API. Always respond with valid JSON only. No markdown, no explanation, no code blocks. Pure JSON only." }] },
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.3, maxOutputTokens: 8192 }
+        generationConfig: { temperature: 0.1, maxOutputTokens: 8192, responseMimeType: "application/json" }
       })
     });
     const data = await response.json();
