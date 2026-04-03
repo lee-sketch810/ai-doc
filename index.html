@@ -485,7 +485,7 @@ function buildBatchPrompts(data, batchSize=10){
     const chapterLabel=chapterSet.length>0?chapterSet.join(', '):'슬라이드 '+(i+1)+'~'+(i+chunk.length);
     const slidesStr=chunk.map(s=>{
       const kp=(s.keyPoints||[]).map((k,j)=>'  '+(j+1)+'. '+k).join('\n');
-      return '---\n슬라이드 '+s.num+'/'+data.totalSlides+' | 유형: '+s.type+' | 레이아웃: '+(s.layoutHint||'content')+'\n제목: '+s.title+'\n본문: '+(s.body||'')+(kp?'\n핵심포인트:\n'+kp:'')+'\n발표노트(원고원문): '+(s.speakerNote||'')+'\n디자인지시: '+(s.canvaPrompt||'');
+      return '---\n슬라이드 '+s.num+'/'+data.totalSlides+' | 유형: '+s.type+' | 레이아웃: '+(s.layoutHint||'content')+'\n제목: '+s.title+'\n본문: '+(s.body||'')+(kp?'\n핵심포인트:\n'+kp:'')+'\n[발표자노트 - 슬라이드 하단 텍스트박스에 아래 내용을 그대로 입력]\n'+(s.speakerNote||'')+'\n[/발표자노트]'+'\n디자인지시: '+(s.canvaPrompt||'');
     }).join('\n');
 
     const prefix=isFirst
@@ -528,7 +528,7 @@ function copyBatch(idx){
 
 function downloadBatchJSONSingle(idx){
   if(!slideData)return;
-  const batchSize=20;
+  const batchSize=10;
   const i=idx*batchSize;
   const chunk=slideData.slides.slice(i,i+batchSize);
   const chapterSet=[...new Set(chunk.map(s=>s.chapter).filter(Boolean))];
@@ -585,7 +585,7 @@ function downloadBatchTXT(){
 function buildPrompt(data){
   const slides=data.slides.map(s=>{
     const kp=(s.keyPoints||[]).map((k,i)=>'  '+(i+1)+'. '+k).join('\n');
-    return '---\n슬라이드 '+s.num+'/'+data.totalSlides+' | 유형: '+s.type+' | 레이아웃: '+(s.layoutHint||'content')+(s.chapter?' | 챕터: '+s.chapter:'')+'\n제목: '+s.title+'\n본문: '+(s.body||'')+(kp?'\n핵심포인트:\n'+kp:'')+'\n발표노트(원고원문): '+(s.speakerNote||'')+'\n디자인지시: '+(s.canvaPrompt||'');
+    return '---\n슬라이드 '+s.num+'/'+data.totalSlides+' | 유형: '+s.type+' | 레이아웃: '+(s.layoutHint||'content')+(s.chapter?' | 챕터: '+s.chapter:'')+'\n제목: '+s.title+'\n본문: '+(s.body||'')+(kp?'\n핵심포인트:\n'+kp:'')+'\n[발표자노트 - 슬라이드 하단 텍스트박스에 아래 내용을 그대로 입력]\n'+(s.speakerNote||'')+'\n[/발표자노트]\n디자인지시: '+(s.canvaPrompt||'');
   }).join('\n');
 
   return `Canva로 프레젠테이션을 만들어주세요.
@@ -619,6 +619,7 @@ function buildPrompt(data){
 - 핵심포인트: 번호/아이콘/컬러박스로 시각화
 - 통계/수치: 인포그래픽 형태로 강조
 - 전체 컬러 팔레트 통일
+- [발표자노트]~[/발표자노트] 사이 텍스트를 슬라이드 하단에 작은 텍스트박스로 삽입 (JSON 형식 아닌 텍스트 그대로 입력)
 
 [슬라이드 상세 내용 - 절대 축약 금지]
 ${slides}`;
