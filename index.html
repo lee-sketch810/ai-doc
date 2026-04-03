@@ -624,21 +624,21 @@ function renderSlides(slides){
 async function exportSlides(){
   const cid=document.getElementById('clientId').value.trim();
   if(!cid){alert('Google OAuth Client ID를 입력해주세요.');goStep(1);return;}
-  goStep(4);
-  const st=document.getElementById('s4status');
-  st.style.display='block';
-  document.getElementById('s4result').style.display='none';
-  st.innerHTML='<span class="spinner"></span>Google 계정 인증 중...';
-  try {
-    const token=await getToken(cid);
-    st.innerHTML='<span class="spinner"></span>슬라이드 생성 중...';
-    const pid=await buildSlides(token,slideData);
-    slidesUrl=`https://docs.google.com/presentation/d/${pid}/edit`;
-    st.style.display='none';
-    document.getElementById('s4result').style.display='block';
-  } catch(e) {
-    st.style.display='none';
-    document.getElementById('s4err').innerHTML=`<div class="err-box">오류: ${e.message}</div>`;
+
+  // 세션에 저장된 토큰 확인
+  const savedToken=sessionStorage.getItem('gtoken');
+  const savedExpiry=parseInt(sessionStorage.getItem('gtoken_expiry')||'0');
+
+  if(savedToken && Date.now()<savedExpiry){
+    // 토큰 있으면 바로 생성
+    goStep(4);
+    await continueExport(savedToken);
+  } else {
+    // 토큰 없으면 슬라이드 데이터 저장 후 OAuth 리다이렉트
+    sessionStorage.setItem('pending_slides', JSON.stringify(slideData));
+    sessionStorage.setItem('pending_cid', cid);
+    sessionStorage.setItem('pending_proto', protoSlidesId||'');
+    await getToken(cid);
   }
 }
 
@@ -646,16 +646,63 @@ function getToken(clientId){
   return new Promise((res,rej)=>{
     const scope='https://www.googleapis.com/auth/presentations https://www.googleapis.com/auth/drive';
     const origin=window.location.origin;
-    const url=`https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(origin)}&response_type=token&scope=${encodeURIComponent(scope)}`;
-    const p=window.open(url,'g_auth','width=520,height=620');
-    const t=setInterval(()=>{
-      try{
-        const h=p.location.hash;
-        if(h&&h.includes('access_token')){clearInterval(t);p.close();res(new URLSearchParams(h.slice(1)).get('access_token'));}
-      }catch(e){}
-      if(p.closed){clearInterval(t);rej(new Error('인증 창이 닫혔습니다.'));}
-    },500);
+
+    // 이미 URL에 토큰이 있으면 바로 사용 (리다이렉트 후 복귀)
+    const hashParams=new URLSearchParams(window.location.hash.slice(1));
+    const existingToken=hashParams.get('access_token');
+    if(existingToken){ window.history.replaceState(null,'',window.location.pathname); return res(existingToken); }
+
+    // 세션에 저장된 토큰 확인
+    const savedToken=sessionStorage.getItem('gtoken');
+    const savedExpiry=parseInt(sessionStorage.getItem('gtoken_expiry')||'0');
+    if(savedToken && Date.now()<savedExpiry){ return res(savedToken); }
+
+    // 리다이렉트 방식으로 인증
+    const state=Math.random().toString(36).slice(2);
+    sessionStorage.setItem('oauth_state', state);
+    sessionStorage.setItem('oauth_client', clientId);
+    const redirectUri=origin+window.location.pathname;
+    const url=`https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=${encodeURIComponent(scope)}&state=${state}`;
+    window.location.href=url;
+    // 리다이렉트 후 페이지가 다시 로드되므로 Promise는 여기서 끝나지 않음
   });
+}
+
+// 페이지 로드 시 리다이렉트 후 토큰 처리
+function checkOAuthReturn(){
+  const hash=window.location.hash;
+  if(!hash.includes('access_token')) return;
+  const params=new URLSearchParams(hash.slice(1));
+  const token=params.get('access_token');
+  const expiresIn=parseInt(params.get('expires_in')||'3600');
+  if(token){
+    sessionStorage.setItem('gtoken', token);
+    sessionStorage.setItem('gtoken_expiry', String(Date.now()+expiresIn*1000));
+    window.history.replaceState(null,'',window.location.pathname);
+    // 저장된 상태로 슬라이드 생성 재시작
+    const pendingSlides=sessionStorage.getItem('pending_slides');
+    if(pendingSlides){
+      sessionStorage.removeItem('pending_slides');
+      slideData=JSON.parse(pendingSlides);
+      goStep(4);
+      continueExport(token);
+    }
+  }
+}
+
+async function continueExport(token){
+  const st=document.getElementById('s4status');
+  st.style.display='block';
+  document.getElementById('s4result').style.display='none';
+  try {
+    const pid=await buildSlides(token,slideData);
+    slidesUrl=`https://docs.google.com/presentation/d/${pid}/edit`;
+    st.style.display='none';
+    document.getElementById('s4result').style.display='block';
+  } catch(e){
+    st.style.display='none';
+    document.getElementById('s4err').innerHTML=`<div class="err-box">오류: ${e.message}</div>`;
+  }
 }
 
 // ── 프로토 슬라이드 레이아웃 분석 ─────────────────────────
@@ -811,6 +858,26 @@ async function buildSlides(token,data){
 
   return pid;
 }
+
+// OAuth 리다이렉트 복귀 처리
+window.addEventListener('load', ()=>{
+  checkOAuthReturn();
+  // 저장된 pending 복구
+  const pending=sessionStorage.getItem('pending_slides');
+  const pendingCid=sessionStorage.getItem('pending_cid');
+  if(pending && pendingCid){
+    const savedToken=sessionStorage.getItem('gtoken');
+    const savedExpiry=parseInt(sessionStorage.getItem('gtoken_expiry')||'0');
+    if(savedToken && Date.now()<savedExpiry){
+      sessionStorage.removeItem('pending_slides');
+      sessionStorage.removeItem('pending_cid');
+      slideData=JSON.parse(pending);
+      protoSlidesId=sessionStorage.getItem('pending_proto')||null;
+      goStep(4);
+      continueExport(savedToken);
+    }
+  }
+});
 
 function openSlides(){if(slidesUrl)window.open(slidesUrl,'_blank');}
 function reset(){mainF=null;protoF=null;protoSlidesId=null;protoLayouts=null;slideData=null;slidesUrl='';clearMain();clearProto();goStep(2);}
