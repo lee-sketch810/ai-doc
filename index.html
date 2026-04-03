@@ -458,9 +458,29 @@ async function fetchBatch(key, prompt){
   if(!r.ok){const e=await r.json();throw new Error(e.error?.message||`HTTP ${r.status}`);}
   const d=await r.json();
   const raw=(d.text||'');
-  const jsonStr=raw.match(/\{[\s\S]*\}/)?.[0]||'';
+  let jsonStr=raw.match(/\{[\s\S]*\}/)?.[0]||'';
   if(!jsonStr) throw new Error('AI 응답에서 JSON을 찾을 수 없습니다.');
-  return JSON.parse(jsonStr);
+
+  // JSON 파싱 시도 - 잘린 경우 복구
+  try {
+    return JSON.parse(jsonStr);
+  } catch(e) {
+    // outline/slides 배열이 잘린 경우 마지막 완전한 항목까지만 복구
+    jsonStr = jsonStr
+      .replace(/,\s*\{[^}]*$/, '')   // 마지막 불완전한 객체 제거
+      .replace(/,\s*$/, '');          // 마지막 쉼표 제거
+
+    // 닫히지 않은 배열/객체 닫기
+    const opens = (jsonStr.match(/\[/g)||[]).length - (jsonStr.match(/\]/g)||[]).length;
+    const openBraces = (jsonStr.match(/\{/g)||[]).length - (jsonStr.match(/\}/g)||[]).length;
+    jsonStr += ']'.repeat(Math.max(0,opens)) + '}'.repeat(Math.max(0,openBraces));
+
+    try {
+      return JSON.parse(jsonStr);
+    } catch(e2) {
+      throw new Error(`JSON 파싱 실패: ${e.message}. 다시 시도해주세요.`);
+    }
+  }
 }
 
 // ── AI Analysis (배치 방식) ───────────────────────────────
