@@ -211,6 +211,7 @@
         <button class="btn" onclick="downloadJSON()">📥 JSON 다운로드</button>
         <button class="btn" onclick="downloadTXT()">📥 전체 프롬프트 TXT</button>
         <button class="btn" onclick="downloadBatchTXT()">📥 챕터별 TXT 다운로드</button>
+        <button class="btn" onclick="downloadBatchJSON()">📥 챕터별 JSON 다운로드</button>
         <button class="btn" onclick="reset()">새 원고 분석</button>
       </div>
       <div id="copyMsg" style="display:none;font-size:12px;color:var(--green);margin-top:8px;">✓ 클립보드에 복사됐습니다. Gemini에 붙여넣기 하세요!</div>
@@ -478,7 +479,10 @@ function renderBatchList(data){
     <div style="margin-bottom:14px;border:0.5px solid var(--border);border-radius:var(--radius);overflow:hidden;">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--bg2);">
         <span style="font-size:13px;font-weight:600;">${b.label}</span>
-        <button class="btn btn-primary" style="padding:5px 12px;font-size:12px;" onclick="copyBatch(${i})">📋 복사</button>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-primary" style="padding:5px 12px;font-size:12px;" onclick="copyBatch(${i})">📋 프롬프트 복사</button>
+          <button class="btn" style="padding:5px 12px;font-size:12px;" onclick="downloadBatchJSONSingle(${i})">📥 JSON</button>
+        </div>
       </div>
       <div style="padding:10px 14px;font-size:11px;color:var(--text3);max-height:80px;overflow:hidden;white-space:pre-wrap;">${b.prompt.slice(0,200)}...</div>
     </div>`).join('');
@@ -493,6 +497,55 @@ function copyBatch(idx){
     m.style.display='block';
     setTimeout(()=>m.style.display='none',3000);
   });
+}
+
+function downloadBatchJSONSingle(idx){
+  if(!slideData)return;
+  const batchSize=20;
+  const i=idx*batchSize;
+  const chunk=slideData.slides.slice(i,i+batchSize);
+  const chapterSet=[...new Set(chunk.map(s=>s.chapter).filter(Boolean))];
+  const batchData={
+    presTitle:slideData.presTitle,
+    framework:slideData.framework,
+    learningType:slideData.learningType,
+    style:slideData.style,
+    batchNum:idx+1,
+    totalBatches:Math.ceil(slideData.slides.length/batchSize),
+    slideRange:{from:i+1,to:i+chunk.length},
+    chapters:chapterSet,
+    slides:chunk
+  };
+  triggerDL(
+    new Blob([JSON.stringify(batchData,null,2)],{type:'application/json'}),
+    (slideData.presTitle||'슬라이드')+'_묶음'+(idx+1)+'.json'
+  );
+}
+
+function downloadBatchJSON(){
+  if(!slideData)return;
+  const batchSize=20;
+  for(let i=0;i<slideData.slides.length;i+=batchSize){
+    const chunk=slideData.slides.slice(i,i+batchSize);
+    const chapterSet=[...new Set(chunk.map(s=>s.chapter).filter(Boolean))];
+    const batchNum=Math.floor(i/batchSize)+1;
+    const label=chapterSet.length>0?chapterSet.join('_'):'slides_'+(i+1)+'_'+(i+chunk.length);
+    const batchData={
+      presTitle:slideData.presTitle,
+      framework:slideData.framework,
+      learningType:slideData.learningType,
+      style:slideData.style,
+      batchNum:batchNum,
+      totalBatches:Math.ceil(slideData.slides.length/batchSize),
+      slideRange:{from:i+1,to:i+chunk.length},
+      chapters:chapterSet,
+      slides:chunk
+    };
+    triggerDL(
+      new Blob([JSON.stringify(batchData,null,2)],{type:'application/json'}),
+      (slideData.presTitle||'슬라이드')+'_묶음'+batchNum+'_'+label+'.json'
+    );
+  }
 }
 
 function downloadBatchTXT(){
