@@ -368,7 +368,7 @@ async function startAnalysis(){
       const outStr=batch.map(s=>s.num+'. ['+s.type+'/'+( s.layoutHint||'content')+'] '+s.title).join('\n');
       const tSlice=mainText.slice(Math.floor((cS/outlineAll.length)*mainText.length),Math.min(Math.floor((cE/outlineAll.length)*mainText.length)+2000,mainText.length));
 
-      const p='이러닝 슬라이드 내용과 Canva 프롬프트를 생성하세요.\n\n[원고 해당 부분]\n'+tSlice+'\n\n[목차]\n'+outStr+'\n\n각 슬라이드:\n- body: 핵심내용(원고 기반, 80자 이내)\n- keyPoints: 핵심포인트 배열(2-4개)\n- speakerNote: 강사노트(150자 이내)\n- canvaPrompt: Canva 디자인 지시(영어, 50자 이내)\n\nJSON만 반환:\n{"slides":[{"num":'+batch[0].num+',"type":"'+batch[0].type+'","title":"제목","body":"내용","keyPoints":["포인트"],"speakerNote":"노트","canvaPrompt":"English design prompt","layoutHint":"'+( batch[0].layoutHint||'content')+'","chapter":"'+(batch[0].chapter||'')+'"}]}';
+      const p='이러닝 교수설계 전문가입니다. 아래 원고 내용을 바탕으로 슬라이드 상세 내용을 생성하세요.\n\n[원고 내용 - 이 내용을 충실히 반영하세요]\n'+tSlice+'\n\n[생성할 슬라이드 목차]\n'+outStr+'\n\n[생성 규칙]\n- body: 원고의 해당 내용을 충실히 담을 것. 요약·축약 금지. 원고에 있는 수치·사례·인용·이론명은 그대로 포함. 200자 이내\n- keyPoints: 학습자가 반드시 기억해야 할 핵심 포인트 2-4개. 원고의 구체적 표현 그대로 사용\n- speakerNote: 강사 스크립트. 원고 문장을 최대한 그대로 활용하여 자연스럽게 서술. 300자 이내\n- canvaPrompt: Canva PPT 슬라이드 디자인 지시 (영어, 레이아웃/색상/시각요소 포함, 60자 이내)\n\n⚠️ 공통 원칙: 원고에 등장하는 모든 고유명사·수치·사례·이론·인용구는 반드시 해당 슬라이드에 포함할 것. 임의로 내용을 만들거나 생략하지 말 것\n\nJSON만 반환:\n{"slides":[{"num":'+batch[0].num+',"type":"'+batch[0].type+'","title":"제목","body":"원고 기반 상세 내용","keyPoints":["구체적 포인트"],"speakerNote":"상세 강사 스크립트","canvaPrompt":"English design prompt for PPT slide","layoutHint":"'+( batch[0].layoutHint||'content')+'","chapter":"'+(batch[0].chapter||'')+'"}]}';
 
       const bd=await callGemini(key,p);
       if(bd.slides&&Array.isArray(bd.slides))slidesAll.push(...bd.slides);
@@ -399,16 +399,45 @@ function renderResult(data){
 }
 
 function buildPrompt(data){
-  const slides=data.slides.map(s=>[
-    '[슬라이드 '+s.num+'] '+s.type.toUpperCase()+' | 레이아웃: '+(s.layoutHint||'content')+(s.chapter?' | 챕터: '+s.chapter:''),
-    '제목: '+s.title,
-    '내용: '+(s.body||''),
-    '핵심포인트: '+((s.keyPoints||[]).join(' / ')),
-    '강사노트: '+(s.speakerNote||''),
-    'Canva 디자인: '+(s.canvaPrompt||'')
-  ].join('\n')).join('\n\n');
+  const slides=data.slides.map(s=>{
+    const kp=(s.keyPoints||[]).map((k,i)=>'  '+(i+1)+'. '+k).join('\n');
+    return '---\n슬라이드 '+s.num+'/'+data.totalSlides+' | 유형: '+s.type+' | 레이아웃: '+(s.layoutHint||'content')+(s.chapter?' | 챕터: '+s.chapter:'')+'\n제목: '+s.title+'\n본문: '+(s.body||'')+(kp?'\n핵심포인트:\n'+kp:'')+'\n강사스크립트: '+(s.speakerNote||'')+'\n디자인지시: '+(s.canvaPrompt||'');
+  }).join('\n');
 
-  return '아래는 이러닝 교수설계 전문가가 "'+data.presTitle+'" 원고를 분석하여 설계한 '+data.totalSlides+'장 슬라이드 구조입니다.\n이 구조를 바탕으로 Canva에서 완성도 높은 이러닝 슬라이드 '+data.totalSlides+'장을 만들어주세요.\n\n[전체 정보]\n- 제목: '+data.presTitle+'\n- 교수설계 프레임워크: '+data.framework+'\n- 학습 유형: '+data.learningType+'\n- 스타일: '+data.style+'\n- 총 슬라이드: '+data.totalSlides+'장\n\n[디자인 원칙]\n- layoutHint에 맞는 레이아웃 적용\n  title_center: 중앙 타이틀 / two_column: 2단 / image_text: 이미지+텍스트 / quiz: 질문 강조 / summary: 요약 박스\n- 학습 흐름(도입→전개→정리→평가)에 따라 배경색 변화\n- 핵심포인트는 아이콘/번호/컬러 박스로 시각화\n- 강사노트는 슬라이드 노트 영역에 삽입\n- 전체 컬러 팔레트 통일\n- 원고 내용 누락 없이 모두 반영\n\n[슬라이드별 상세 내용]\n'+slides+'\n\n위 내용을 모두 반영하여 누락 없이 '+data.totalSlides+'장 전체를 Canva로 생성해주세요.';
+  return `Canva로 프레젠테이션을 만들어주세요.
+
+⚠️ 반드시 지켜야 할 규칙:
+1. 웹페이지나 문서가 아닌 반드시 Canva 프레젠테이션(PPT)으로 만들 것
+2. 아래 슬라이드별 내용을 절대 축약하거나 생략하지 말 것
+3. 본문과 핵심포인트의 내용을 그대로 슬라이드에 반영할 것
+4. 강사스크립트는 슬라이드 노트에 입력할 것
+5. 총 ${data.totalSlides}장을 모두 만들 것 (1장도 빠짐없이)
+
+[프레젠테이션 정보]
+제목: ${data.presTitle}
+교수설계 프레임워크: ${data.framework}
+학습 유형: ${data.learningType}
+스타일: ${data.style}
+총 슬라이드: ${data.totalSlides}장
+
+[레이아웃 규칙]
+- title_center: 제목만 크게 중앙 배치
+- content_bullet: 제목 + 핵심포인트 목록
+- two_column: 좌우 2단 구성
+- image_text: 이미지 영역 + 텍스트
+- quiz: 질문을 크게 강조
+- summary: 요약 박스 형태
+
+[디자인 원칙]
+- 도입부: 밝고 임팩트 있는 배경
+- 내용부: 깔끔하고 가독성 높은 레이아웃
+- 정리/평가: 차분하고 정돈된 느낌
+- 핵심포인트: 번호/아이콘/컬러박스로 시각화
+- 통계/수치: 인포그래픽 형태로 강조
+- 전체 컬러 팔레트 통일
+
+[슬라이드 상세 내용 - 절대 축약 금지]
+${slides}`;
 }
 
 function copyPrompt(){
