@@ -193,9 +193,9 @@
         ondragover="dov(event,'mainDrop')" ondragleave="dlv('mainDrop')" ondrop="ddr(event,'mainDrop',setMain)">
         <div class="drop-icon">📄</div>
         <div class="drop-title">PDF 또는 Word 파일을 여기에 드래그하거나 클릭</div>
-        <div class="drop-sub">.pdf · .docx 지원 · 최대 20MB</div>
+        <div class="drop-sub">.pdf · .docx · .txt 지원 · 최대 20MB</div>
       </div>
-      <input type="file" id="mainFile" accept=".pdf,.docx,.doc" style="display:none" onchange="setMain(this.files[0])">
+      <input type="file" id="mainFile" accept=".pdf,.docx,.doc,.txt" style="display:none" onchange="setMain(this.files[0])">
       <div id="mainBadge" style="display:none;"></div>
 
       <div class="sep">프로토 Google Slides <span class="tag tag-amber">선택</span></div>
@@ -384,17 +384,45 @@ async function extractText(file){
   if(name.endsWith('.docx')||name.endsWith('.doc')){
     try {
       const result=await mammoth.extractRawText({arrayBuffer:buf});
-      const text=result.value||'';
+      let text=result.value||'';
+      // 글자 사이 공백 정리: "주 제" → "주제", "작 성 자" → "작성자"
+      // 한 글자 + 공백 + 한 글자 패턴이 반복되면 공백 제거
+      text = text
+        .replace(/([가-힣a-zA-Z0-9])\s([가-힣a-zA-Z0-9])\s([가-힣a-zA-Z0-9])/g, '$1$2$3')
+        .replace(/([가-힣a-zA-Z0-9])\s([가-힣a-zA-Z0-9])/g, (m,a,b)=>{
+          // 둘 다 한글 한 글자면 붙이기
+          if(/[가-힣]/.test(a)&&/[가-힣]/.test(b)) return a+b;
+          return m;
+        })
+        .replace(/
+{3,}/g,'\n\n')  // 3줄 이상 빈줄 → 2줄
+        .trim();
+      console.log('추출된 텍스트 미리보기:', text.slice(0,300));
       if(text.trim().length>50) return text.trim().slice(0,8000);
     } catch(e){ console.warn('mammoth error:',e); }
     // fallback: XML에서 직접 텍스트 추출
     try {
       const zip=await JSZip.loadAsync(buf);
       const xml=await zip.file('word/document.xml').async('string');
-      const text=xml.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
+      // XML 태그 제거 후 텍스트만 추출
+      const text=xml
+        .replace(/<w:p[ >]/g,'\n')   // 단락 구분
+        .replace(/<[^>]+>/g,'')       // 태그 제거
+        .replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>')
+        .replace(/
+{3,}/g,'\n\n')
+        .trim();
+      console.log('XML fallback 텍스트:', text.slice(0,300));
       return text.slice(0,8000);
     } catch(e){ console.warn('zip fallback error:',e); }
     return '';
+  }
+
+  // TXT 처리 — 직접 읽기
+  if(name.endsWith('.txt')){
+    const text=new TextDecoder('utf-8').decode(buf);
+    console.log('TXT 추출 미리보기:', text.slice(0,300));
+    return text.trim().slice(0,8000);
   }
 
   // PDF 처리 — PDF.js 사용
