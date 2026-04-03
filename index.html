@@ -384,7 +384,7 @@ async function startAnalysis(){
 
     const extra=document.getElementById('extra').value;
     const outlineAll=[];
-    const OBS=20;
+    const OBS=10;
     const outlineBatches=Math.ceil(targetSlides/OBS);
     let presTitle='',framework='',learningType='';
 
@@ -392,7 +392,7 @@ async function startAnalysis(){
       const oS=ob*OBS+1,oE=Math.min((ob+1)*OBS,targetSlides);
       setStatus('목차 구조 설계 중... ('+oS+'~'+oE+'번 / 총 '+targetSlides+'장)',Math.round(5+(ob/outlineBatches)*35));
 
-      const p='이러닝 교수설계 전문가입니다. 아래 원고를 분석해 슬라이드 목차를 설계하세요.\n\n[원고]\n'+mainText.slice(0,5000)+'\n\n[원칙]\n- 프레임워크: 자동선택(Gagne/Merrill/ADDIE)\n- 원고 내용 누락없이 반영\n- 흐름: 도입→학습목표→내용→활동/퀴즈→정리→평가\n- 스타일: '+selectedStyle+(extra?'\n- 추가: '+extra:'')+'\n\nnum '+oS+'부터 '+oE+'까지 정확히 '+(oE-oS+1)+'개 반환.\nJSON만 반환:\n{"presTitle":"제목","framework":"프레임워크","learningType":"학습유형","outline":[{"num":'+oS+',"type":"intro","title":"제목","chapter":"챕터","layoutHint":"title_center"}]}';
+      const p='이러닝 교수설계 전문가. 원고 분석 후 슬라이드 목차 설계.\n\n[원고]\n'+mainText.slice(0,4000)+'\n\n[조건]\n프레임워크: 자동선택(Gagne/Merrill/ADDIE), 스타일: '+selectedStyle+(extra?', 추가: '+extra:'')+'\n\nnum '+oS+'~'+oE+' 정확히 '+(oE-oS+1)+'개만 반환.\nJSON만 반환:\n{"presTitle":"제목","framework":"fw","learningType":"유형","outline":[{"num":'+oS+',"type":"intro","title":"제목","chapter":"챕터","layoutHint":"title_center"}]}';
 
       const sd=await callGemini(key,p);
       if(ob===0){presTitle=sd.presTitle||'이러닝 슬라이드';framework=sd.framework||'ADDIE';learningType=sd.learningType||'이론 학습';}
