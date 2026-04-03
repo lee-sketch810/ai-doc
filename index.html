@@ -317,39 +317,62 @@ async function callGemini(key,prompt,retries=2){
       const raw=d.text||'';
       console.log('Gemini 응답 (attempt '+(attempt+1)+'):', raw.slice(0,300));
 
-      // JSON 블록 추출 시도
-      let js=raw.match(/\{[\s\S]*\}/)?.[0]||'';
-
-      // 추출 실패시 전체를 JSON으로 시도
-      if(!js) js=raw.trim();
+      // JSON 파싱 - 객체/배열 모두 처리
+      let js=raw.trim();
       if(!js) throw new Error('빈 응답');
 
-      // 1차: 직접 파싱
-      try{return JSON.parse(js);}catch(e1){}
+      // 1차: 전체 직접 파싱
+      try{
+        const parsed=JSON.parse(js);
+        // 배열로 반환된 경우 {slides:[...]} 로 감싸기
+        if(Array.isArray(parsed)) return {slides:parsed};
+        return parsed;
+      }catch(e1){}
 
-      // 2차: 끊긴 배열 복구
+      // 2차: { } 블록 추출
+      try{
+        const obj=js.match(/\{[\s\S]*\}/)?.[0];
+        if(obj){
+          const parsed=JSON.parse(obj);
+          if(Array.isArray(parsed)) return {slides:parsed};
+          return parsed;
+        }
+      }catch(e2){}
+
+      // 3차: [ ] 배열 블록 추출
+      try{
+        const arr=js.match(/\[[\s\S]*\]/)?.[0];
+        if(arr){
+          const parsed=JSON.parse(arr);
+          if(Array.isArray(parsed)) return {slides:parsed};
+          return parsed;
+        }
+      }catch(e3){}
+
+      // 4차: 끊긴 JSON 복구
       try{
         let fixed=js
-          .replace(/,\s*\{[^{}]*$/,'')   // 마지막 불완전 객체 제거
-          .replace(/,\s*"[^"]*"\s*:\s*[^,}]*$/,'') // 마지막 불완전 키값 제거
-          .replace(/,\s*$/,'');           // 마지막 쉼표 제거
+          .replace(/,\s*\{[^{}]*$/,'')
+          .replace(/,\s*"[^"]*"\s*:\s*[^,}\]]*$/,'')
+          .replace(/,\s*$/,'');
         const opens=(fixed.match(/\[/g)||[]).length-(fixed.match(/\]/g)||[]).length;
         const braces=(fixed.match(/\{/g)||[]).length-(fixed.match(/\}/g)||[]).length;
         fixed+=']'.repeat(Math.max(0,opens))+'}' .repeat(Math.max(0,braces));
-        return JSON.parse(fixed);
-      }catch(e2){}
+        const parsed=JSON.parse(fixed);
+        if(Array.isArray(parsed)) return {slides:parsed};
+        return parsed;
+      }catch(e4){}
 
-      // 3차: slides 배열만 추출
+      // 5차: slides 배열만 추출
       try{
         const slidesMatch=raw.match(/"slides"\s*:\s*(\[[\s\S]*)/);
         if(slidesMatch){
           let arr=slidesMatch[1];
           const opens=(arr.match(/\[/g)||[]).length-(arr.match(/\]/g)||[]).length;
           arr+=']'.repeat(Math.max(0,opens));
-          const parsed=JSON.parse(arr);
-          return {slides:parsed};
+          return {slides:JSON.parse(arr)};
         }
-      }catch(e3){}
+      }catch(e5){}
 
       if(attempt<retries){
         console.log('파싱 실패, 재시도 중...');
