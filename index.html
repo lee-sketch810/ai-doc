@@ -333,6 +333,26 @@ function clearProto(){
   const i=document.getElementById('protoInd');if(i)i.remove();
 }
 
+// ── PDF text extraction via PDF.js ───────────────────────
+async function extractText(file){
+  if(!file) return '';
+  const buf=await file.arrayBuffer();
+  if(file.name.toLowerCase().endsWith('.pdf')){
+    const pdfjsLib=window['pdfjs-dist/build/pdf'];
+    pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    const pdf=await pdfjsLib.getDocument({data:buf}).promise;
+    let text='';
+    for(let i=1;i<=Math.min(pdf.numPages,30);i++){
+      const page=await pdf.getPage(i);
+      const tc=await page.getTextContent();
+      text+=tc.items.map(it=>it.str).join(' ')+'\n';
+    }
+    return text.trim().slice(0,15000); // 15,000자 제한
+  }
+  // docx: 텍스트로 읽기 시도
+  return new TextDecoder('utf-8',{fatal:false}).decode(buf).replace(/[^\x20-\x7E\uAC00-\uD7A3\u3131-\u318E\u3200-\u321E]/g,' ').trim().slice(0,15000);
+}
+
 // ── AI Analysis ──────────────────────────────────────────
 async function startAnalysis(){
   const key=document.getElementById('anthropicKey').value.trim();
@@ -343,22 +363,25 @@ async function startAnalysis(){
   const res=document.getElementById('s3result');
   st.style.display='block'; res.style.display='none';
 
-  const msgs=['문서 내용 파싱 중...','교수설계 프레임워크 선택 중...','이러닝 원칙 적용 중...','슬라이드 구조 생성 중...'];
+  const msgs=['PDF 텍스트 추출 중...','교수설계 프레임워크 선택 중...','이러닝 원칙 적용 중...','슬라이드 구조 생성 중...'];
   let mi=0;
   const iv=setInterval(()=>{if(mi<msgs.length)st.innerHTML=`<span class="spinner"></span>${msgs[mi++]}`;},1800);
 
   try {
-    const mainB64=await toB64(mainF);
-    const protoB64=protoF?await toB64(protoF):null;
+    st.innerHTML='<span class="spinner"></span>PDF 텍스트 추출 중...';
+    const mainText=await extractText(mainF);
+    const protoText=protoF?await extractText(protoF):'';
 
-    const protoBlock=protoF?`\n프로토 참조 문서가 함께 제공됩니다. 이 문서의 다음 요소를 분석하여 동일하게 적용하세요:
-- 레이아웃 구조 (슬라이드 섹션 배열 방식)
-- 섹션 구성 패턴 (도입-전개-정리 흐름)
-- 슬라이드 유형 구성 비율
-- 각 슬라이드의 텍스트 밀도 및 정보 구조`:'';
+    if(!mainText||mainText.length<50) throw new Error('문서에서 텍스트를 추출할 수 없습니다. PDF가 이미지 기반이거나 손상된 파일일 수 있습니다.');
 
+    const protoBlock=protoText?`\n\n[프로토 참조 문서 내용]\n${protoText}\n\n위 프로토 문서의 레이아웃 구조·섹션 구성 패턴·슬라이드 유형 비율·텍스트 밀도를 분석하여 동일하게 적용하세요.`:'';
     const extra=document.getElementById('extra').value;
-    const prompt=`당신은 이러닝 교수설계 전문가입니다. 제공된 문서를 분석하여 최적의 이러닝 슬라이드 구조를 설계하세요.
+
+    const prompt=`당신은 이러닝 교수설계 전문가입니다. 아래 문서 내용을 분석하여 최적의 이러닝 슬라이드 구조를 설계하세요.
+
+[변환할 문서 내용]
+${mainText}
+${protoBlock}
 
 [교수설계 원칙]
 1. 문서 성격 파악 (개념학습/절차학습/태도변화/평가)
@@ -370,30 +393,16 @@ async function startAnalysis(){
 4. 인지 부하 최소화: 슬라이드당 텍스트 3줄 이내
 5. 학습자 참여: 퀴즈/반성/체크 슬라이드 포함
 6. 명확한 흐름: 도입→전개→정리→평가 구조
-7. 스타일: ${selectedStyle}${protoBlock}
+7. 스타일: ${selectedStyle}
 ${extra?`\n[추가 지시사항]\n${extra}`:''}
 
 아래 JSON 형식만 반환하세요. 코드블록이나 다른 텍스트 없이:
 {"presTitle":"제목","framework":"프레임워크명","learningType":"학습유형","totalSlides":숫자,"slides":[{"num":1,"type":"intro|objective|concept|procedure|activity|quiz|summary|transfer","title":"슬라이드 제목","body":"핵심 내용 2-3줄","speakerNote":"강사 노트 한 줄"}]}`;
 
-    const content=[];
-    if(mainF.name.toLowerCase().endsWith('.pdf'))
-      content.push({type:'document',source:{type:'base64',media_type:'application/pdf',data:mainB64}});
-    else
-      content.push({type:'text',text:`[변환 문서 업로드됨 — 파일명: ${mainF.name}]`});
-
-    if(protoB64){
-      if(protoF.name.toLowerCase().endsWith('.pdf'))
-        content.push({type:'document',source:{type:'base64',media_type:'application/pdf',data:protoB64}});
-      else
-        content.push({type:'text',text:`[프로토 참조 문서 업로드됨 — 파일명: ${protoF.name}]`});
-    }
-    content.push({type:'text',text:prompt});
-
     const r=await fetch('/api/analyze',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({apiKey:key,model:'claude-opus-4-5',max_tokens:2000,messages:[{role:'user',content}]})
+      body:JSON.stringify({apiKey:key,model:'claude-opus-4-5',max_tokens:2000,messages:[{role:'user',content:[{type:'text',text:prompt}]}]})
     });
     if(!r.ok){const e=await r.json();throw new Error(e.error?.message||`HTTP ${r.status}`);}
     const d=await r.json();
@@ -540,5 +549,6 @@ function triggerDownload(blob,filename){
   setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 </script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 </body>
 </html>
