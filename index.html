@@ -712,6 +712,15 @@ async function buildSlides(token,data){
 
   document.getElementById('s4status').innerHTML='<span class="spinner"></span>슬라이드 내용 작성 중...';
 
+  // 기존 빈 슬라이드 먼저 삭제 (별도 요청)
+  if(firstSlideIds.length>0){
+    await fetch(`https://slides.googleapis.com/v1/presentations/${pid}:batchUpdate`,{
+      method:'POST',
+      headers:{'Authorization':`Bearer ${token}`,'Content-Type':'application/json'},
+      body:JSON.stringify({requests:firstSlideIds.map(id=>({deleteObject:{objectId:id}}))})
+    });
+  }
+
   // 2. 슬라이드 내용 10장씩 배치 처리
   const batchSize=10;
   for(let b=0;b<Math.ceil(data.slides.length/batchSize);b++){
@@ -726,10 +735,6 @@ async function buildSlides(token,data){
       const bid=`bdy${String(i+1).padStart(4,'0')}`;
       const nid=`nte${String(i+1).padStart(4,'0')}`;
 
-      // 첫 슬라이드는 기존 빈 슬라이드 삭제 후 새로 생성
-      if(i===0 && firstSlideIds[0]){
-        reqs.push({deleteObject:{objectId:firstSlideIds[0]}});
-      }
       reqs.push({createSlide:{
         objectId:sid,
         insertionIndex:i,
