@@ -146,14 +146,14 @@
       <div class="card-title">API 키 설정</div>
 
       <div class="field">
-        <label class="lbl">Anthropic API Key</label>
+        <label class="lbl">Google Gemini API Key <span style="font-size:11px;color:#1D9E75;font-weight:600;">무료</span></label>
         <div class="pw-wrap">
-          <input class="inp" type="password" id="anthropicKey" placeholder="sk-ant-..." />
+          <input class="inp" type="password" id="anthropicKey" placeholder="AIzaSy..." />
           <button class="eye" onclick="tpw('anthropicKey')">👁</button>
         </div>
         <details>
           <summary>어디서 발급받나요?</summary>
-          <p>console.anthropic.com → API Keys → Create Key. 무료 크레딧으로 시작 가능합니다.</p>
+          <p>aistudio.google.com → Get API Key → Create API Key. 완전 무료로 사용 가능합니다.</p>
         </details>
       </div>
 
@@ -402,12 +402,12 @@ ${extra?`\n[추가 지시사항]\n${extra}`:''}
     const r=await fetch('/api/analyze',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({apiKey:key,model:'claude-opus-4-5',max_tokens:2000,messages:[{role:'user',content:[{type:'text',text:prompt}]}]})
+      body:JSON.stringify({apiKey:key,prompt})
     });
     if(!r.ok){const e=await r.json();throw new Error(e.error?.message||`HTTP ${r.status}`);}
     const d=await r.json();
     clearInterval(iv);
-    const txt=d.content.map(i=>i.text||'').join('').replace(/```json|```/g,'').trim();
+    const txt=(d.text||'').replace(/```json|```/g,'').trim();
     slideData=JSON.parse(txt);
 
     renderMeta(slideData);
